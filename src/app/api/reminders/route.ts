@@ -30,9 +30,18 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { babyId, title, content, color } = body;
 
+    let targetBabyId = babyId;
+    if (!targetBabyId) {
+      const firstBaby = await prisma.baby.findFirst();
+      if (!firstBaby) {
+        return NextResponse.json({ error: 'Nenhum bebê cadastrado' }, { status: 400 });
+      }
+      targetBabyId = firstBaby.id;
+    }
+
     const reminder = await prisma.reminder.create({
       data: {
-        babyId,
+        babyId: targetBabyId,
         title,
         content,
         color: color || 'yellow',

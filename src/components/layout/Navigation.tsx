@@ -2,12 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, TrendingUp, Syringe, Stethoscope, StickyNote, Sun, Moon, Baby as BabyIcon, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Home, TrendingUp, Syringe, Stethoscope, StickyNote, Sun, Moon, Baby as BabyIcon, Plus, Trash2, ChevronDown, LogIn, Users } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import HeaderAgendaWidget from './HeaderAgendaWidget';
+import AuthModal from '../auth/AuthModal';
+import ShareBabyModal from '../auth/ShareBabyModal';
+import { useAuth } from '@/lib/authContext';
 
 export default function Navigation() {
   const pathname = usePathname();
+  const { user, profile, logout } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(true);
+
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const [babies, setBabies] = useState<any[]>([]);
   const [selectedBabyId, setSelectedBabyId] = useState<string>('');
@@ -122,7 +130,7 @@ export default function Navigation() {
   return (
     <>
       {/* Desktop Navigation */}
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-b border-rose-100 dark:border-slate-800 px-4 md:px-8 py-3 flex items-center justify-between w-full shadow-sm transition-colors">
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/90 backdrop-blur-md border-b border-rose-100 dark:border-slate-800 px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-4 w-full shadow-sm transition-colors">
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-3 group">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-400 via-rose-300 to-amber-200 dark:from-indigo-600 dark:to-violet-500 flex items-center justify-center font-bold text-slate-800 dark:text-white shadow-md text-lg group-hover:scale-105 transition-transform">
@@ -158,7 +166,24 @@ export default function Navigation() {
           </nav>
         </div>
 
+        {/* Central Widget: Relógio e Calendário Agenda */}
+        <div className="hidden lg:flex items-center">
+          <HeaderAgendaWidget />
+        </div>
+
         <div className="flex items-center gap-3">
+          {/* Botão de Compartilhar Bebê em Casal */}
+          {activeBaby && (
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="hidden sm:flex items-center gap-1.5 bg-rose-50 dark:bg-slate-800/60 hover:bg-rose-100 dark:hover:bg-slate-800 px-3 py-2 rounded-xl border border-rose-200 dark:border-slate-700 text-xs font-bold text-rose-600 dark:text-indigo-300 transition"
+              title="Compartilhar este bebê com parceiro(a)"
+            >
+              <Users size={16} />
+              <span>Casal</span>
+            </button>
+          )}
+
           <button
             onClick={() => setShowBabyModal(true)}
             className="flex items-center gap-2 bg-rose-50 dark:bg-slate-800/60 hover:bg-rose-100/70 dark:hover:bg-slate-800 px-3.5 py-2 rounded-xl border border-rose-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-100 transition-all shadow-xs"
@@ -166,6 +191,26 @@ export default function Navigation() {
             <BabyIcon size={16} className="text-rose-500 dark:text-indigo-400" />
             <span>{activeBaby?.name || 'Selecione Bebê'}</span>
             <ChevronDown size={14} className="text-slate-400" />
+          </button>
+
+          {/* Botão de Login / Perfil do Usuário */}
+          <button
+            onClick={() => {
+              if (user) {
+                if (confirm(`Conectado como ${profile?.displayName || user.email}. Deseja sair da conta?`)) {
+                  logout();
+                }
+              } else {
+                setShowAuthModal(true);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
+            title={user ? `Logado como ${profile?.displayName}` : 'Entrar ou Cadastrar'}
+          >
+            <LogIn size={15} className="text-rose-500 dark:text-indigo-400" />
+            <span className="hidden md:inline">
+              {user ? (profile?.displayName ? `Olá, ${profile.displayName}` : 'Minha Conta') : 'Entrar / Cadastrar'}
+            </span>
           </button>
 
           <button
@@ -265,6 +310,30 @@ export default function Navigation() {
               </div>
 
               <div>
+                <label className="text-[11px] text-slate-500 dark:text-slate-400 block mb-1">Gênero / Tema do Perfil</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'male', label: 'Menino 👦', color: 'border-sky-300 text-sky-600 bg-sky-50 dark:bg-sky-500/10' },
+                    { id: 'female', label: 'Menina 👧', color: 'border-rose-300 text-rose-600 bg-rose-50 dark:bg-rose-500/10' },
+                    { id: 'other', label: 'Unissex 👶', color: 'border-amber-300 text-amber-600 bg-amber-50 dark:bg-amber-500/10' },
+                  ].map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setNewBabyGender(g.id)}
+                      className={`py-2 px-2 text-xs font-bold rounded-xl border transition ${
+                        newBabyGender === g.id
+                          ? `${g.color} ring-2 ring-offset-1 ring-current shadow-xs font-black`
+                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
                 <label className="text-[11px] text-slate-500 dark:text-slate-400 block mb-1">Data de Nascimento</label>
                 <input
                   type="date"
@@ -295,6 +364,9 @@ export default function Navigation() {
           </div>
         </div>
       )}
+      {/* Modais de Autenticação e Compartilhamento de Casal */}
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+      <ShareBabyModal isOpen={showShareModal} onClose={() => setShowShareModal(false)} baby={activeBaby} />
     </>
   );
 }

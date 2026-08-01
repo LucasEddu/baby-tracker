@@ -51,6 +51,11 @@ export async function GET(request: Request) {
       orderBy: { startedAt: 'desc' },
     });
 
+    const napSessions = await (prisma as any).napSession.findMany({
+      where: { babyId: baby.id },
+      orderBy: { startedAt: 'desc' },
+    });
+
     return NextResponse.json({
       baby,
       bowel,
@@ -58,6 +63,7 @@ export async function GET(request: Request) {
       vaccines,
       appointments,
       feedings,
+      napSessions,
       todayDiaperCount,
     });
   } catch (error: any) {

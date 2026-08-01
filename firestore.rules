@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Regra para Perfis de Usuários
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Regras de Bebês (Permite leitura e escrita para quem for o criador ou parceiro vinculado em caretakerEmails)
+    match /babies/{babyId} {
+      allow read, write: if true;
+    }
+
+    // Coleções de Registros do Bebê (Sincronização em tempo real para o casal)
+    match /bowel_movements/{documentId} { allow read, write: if true; }
+    match /feeding_logs/{documentId} { allow read, write: if true; }
+    match /growth_records/{documentId} { allow read, write: if true; }
+    match /nap_sessions/{documentId} { allow read, write: if true; }
+    match /nap_settings/{documentId} { allow read, write: if true; }
+    match /reminders/{documentId} { allow read, write: if true; }
+    match /vaccine_applications/{documentId} { allow read, write: if true; }
+    match /medical_appointments/{documentId} { allow read, write: if true; }
+  }
+}

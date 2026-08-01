@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { StickyNote, Plus, Pin, Trash2, Edit2, Check } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { StickyNote, Plus, Pin, Trash2, Edit2, Check, ZoomIn, ZoomOut, RotateCcw, Move, Palette, LayoutGrid } from 'lucide-react';
 
 export default function RemindersPage() {
   const [reminders, setReminders] = useState<any[]>([]);
   const [baby, setBaby] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -16,20 +16,54 @@ export default function RemindersPage() {
   const [color, setColor] = useState('yellow');
   const [submitting, setSubmitting] = useState(false);
 
+  // Canvas / Pan Zoom & Drag states
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [startPan, setStartPan] = useState({ x: 0, y: 0 });
+
+  // Dragging pin state
+  const [draggingPinId, setDraggingPinId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
+
   const colors = [
-    { id: 'yellow', name: 'Amarelo Pássaro', bgLight: 'bg-amber-100/90 border-amber-200 text-amber-900', bgDark: 'dark:bg-amber-950/70 dark:border-amber-700/50 dark:text-amber-100', badge: 'bg-amber-400' },
-    { id: 'rose', name: 'Rosa Chiclete', bgLight: 'bg-rose-100/90 border-rose-200 text-rose-900', bgDark: 'dark:bg-rose-950/70 dark:border-rose-700/50 dark:text-rose-100', badge: 'bg-rose-400' },
-    { id: 'emerald', name: 'Verde Menta', bgLight: 'bg-emerald-100/90 border-emerald-200 text-emerald-900', bgDark: 'dark:bg-emerald-950/70 dark:border-emerald-700/50 dark:text-emerald-100', badge: 'bg-emerald-400' },
-    { id: 'sky', name: 'Azul Céu', bgLight: 'bg-sky-100/90 border-sky-200 text-sky-900', bgDark: 'dark:bg-sky-950/70 dark:border-sky-700/50 dark:text-sky-100', badge: 'bg-sky-400' },
-    { id: 'purple', name: 'Roxo Lavanda', bgLight: 'bg-purple-100/90 border-purple-200 text-purple-900', bgDark: 'dark:bg-purple-950/70 dark:border-purple-700/50 dark:text-purple-100', badge: 'bg-purple-400' },
+    { id: 'yellow', name: 'Amarelo Pássaro', bgLight: 'bg-amber-100/95 border-amber-300 text-amber-950', bgDark: 'dark:bg-amber-950/80 dark:border-amber-700/60 dark:text-amber-100', badge: 'bg-amber-400' },
+    { id: 'rose', name: 'Rosa Chiclete', bgLight: 'bg-rose-100/95 border-rose-300 text-rose-950', bgDark: 'dark:bg-rose-950/80 dark:border-rose-700/60 dark:text-rose-100', badge: 'bg-rose-400' },
+    { id: 'emerald', name: 'Verde Menta', bgLight: 'bg-emerald-100/95 border-emerald-300 text-emerald-950', bgDark: 'dark:bg-emerald-950/80 dark:border-emerald-700/60 dark:text-emerald-100', badge: 'bg-emerald-400' },
+    { id: 'sky', name: 'Azul Céu', bgLight: 'bg-sky-100/95 border-sky-300 text-sky-950', bgDark: 'dark:bg-sky-950/80 dark:border-sky-700/60 dark:text-sky-100', badge: 'bg-sky-400' },
+    { id: 'purple', name: 'Roxo Lavanda', bgLight: 'bg-purple-100/95 border-purple-300 text-purple-950', bgDark: 'dark:bg-purple-950/80 dark:border-purple-700/60 dark:text-purple-100', badge: 'bg-purple-400' },
   ];
+
+  // Função para alinhar automaticamente os pins em grid organizado
+  const handleAlignGrid = (customRemindersList?: any[]) => {
+    const list = customRemindersList || reminders;
+    const newPos: Record<string, { x: number; y: number }> = {};
+    list.forEach((rem, idx) => {
+      const col = idx % 3;
+      const row = Math.floor(idx / 3);
+      newPos[rem.id] = { x: 40 + col * 270, y: 40 + row * 220 };
+    });
+    setPositions(newPos);
+  };
+
+  // Função para ordenar os lembretes por cor e alinhar no grid
+  const handleSortByColor = () => {
+    const colorOrder: Record<string, number> = { yellow: 0, rose: 1, emerald: 2, sky: 3, purple: 4 };
+    const sorted = [...reminders].sort((a, b) => {
+      const orderA = colorOrder[a.color] ?? 99;
+      const orderB = colorOrder[b.color] ?? 99;
+      return orderA - orderB;
+    });
+    setReminders(sorted);
+    handleAlignGrid(sorted);
+  };
 
   async function loadReminders() {
     setLoading(true);
     try {
       const activeBabyId = localStorage.getItem('activeBabyId') || '';
-      
-      // Ensure baby object is loaded
+
       const babyRes = await fetch(`/api/bowel-movements?babyId=${activeBabyId}`);
       const babyData = await babyRes.json();
       const currentBaby = babyData.baby;
@@ -38,7 +72,17 @@ export default function RemindersPage() {
       if (currentBaby?.id) {
         const res = await fetch(`/api/reminders?babyId=${currentBaby.id}`);
         const data = await res.json();
-        setReminders(Array.isArray(data) ? data : []);
+        const rems = Array.isArray(data) ? data : [];
+        setReminders(rems);
+
+        // Inicializar posições em grid para novos pins que não tenham posição salva
+        const newPos: Record<string, { x: number; y: number }> = {};
+        rems.forEach((rem, idx) => {
+          const col = idx % 3;
+          const row = Math.floor(idx / 3);
+          newPos[rem.id] = { x: 40 + col * 260, y: 40 + row * 220 };
+        });
+        setPositions((prev) => ({ ...newPos, ...prev }));
       }
     } catch (e) {
       console.error(e);
@@ -52,6 +96,102 @@ export default function RemindersPage() {
     loadReminders();
   }, []);
 
+  // Controls Zoom
+  const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.15, 2));
+  const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.15, 0.5));
+  const handleResetZoom = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  // Panning Canvas (Arrastar o fundo da box)
+  const handleMouseDownCanvas = (e: React.MouseEvent) => {
+    if (draggingPinId) return;
+    setIsPanning(true);
+    setStartPan({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+  };
+
+  const handleMouseMoveCanvas = (e: React.MouseEvent) => {
+    if (draggingPinId) {
+      // Movendo um Post-it específico
+      const x = (e.clientX - dragOffset.x - pan.x) / zoom;
+      const y = (e.clientY - dragOffset.y - pan.y) / zoom;
+      setPositions((prev) => ({
+        ...prev,
+        [draggingPinId]: { x: Math.max(10, x), y: Math.max(10, y) },
+      }));
+    } else if (isPanning) {
+      // Movendo a área do mural (Pan)
+      setPan({
+        x: e.clientX - startPan.x,
+        y: e.clientY - startPan.y,
+      });
+    }
+  };
+
+  const handleMouseUpCanvas = () => {
+    setIsPanning(false);
+    setDraggingPinId(null);
+  };
+
+  // Handlers para Touch / Mobile no Canvas e nos Pins
+  const handleTouchStartCanvas = (e: React.TouchEvent) => {
+    if (draggingPinId) return;
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      setIsPanning(true);
+      setStartPan({ x: touch.clientX - pan.x, y: touch.clientY - pan.y });
+    }
+  };
+
+  const handleTouchMoveCanvas = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      if (draggingPinId) {
+        const x = (touch.clientX - dragOffset.x - pan.x) / zoom;
+        const y = (touch.clientY - dragOffset.y - pan.y) / zoom;
+        setPositions((prev) => ({
+          ...prev,
+          [draggingPinId]: { x: Math.max(10, x), y: Math.max(10, y) },
+        }));
+      } else if (isPanning) {
+        setPan({
+          x: touch.clientX - startPan.x,
+          y: touch.clientY - startPan.y,
+        });
+      }
+    }
+  };
+
+  const handleTouchEndCanvas = () => {
+    setIsPanning(false);
+    setDraggingPinId(null);
+  };
+
+  const handleStartDragPinTouch = (e: React.TouchEvent, id: string) => {
+    e.stopPropagation();
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      setDraggingPinId(id);
+      const pos = positions[id] || { x: 0, y: 0 };
+      setDragOffset({
+        x: touch.clientX - pos.x * zoom - pan.x,
+        y: touch.clientY - pos.y * zoom - pan.y,
+      });
+    }
+  };
+
+  // Iniciar Drag em um Pin específico (Mouse)
+  const handleStartDragPin = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setDraggingPinId(id);
+    const pos = positions[id] || { x: 0, y: 0 };
+    setDragOffset({
+      x: e.clientX - pos.x * zoom - pan.x,
+      y: e.clientY - pos.y * zoom - pan.y,
+    });
+  };
+
   function handleOpenCreate() {
     setEditingId(null);
     setTitle('');
@@ -60,7 +200,8 @@ export default function RemindersPage() {
     setShowModal(true);
   }
 
-  function handleOpenEdit(rem: any) {
+  function handleOpenEdit(e: React.MouseEvent, rem: any) {
+    e.stopPropagation();
     setEditingId(rem.id);
     setTitle(rem.title);
     setContent(rem.content || '');
@@ -70,13 +211,13 @@ export default function RemindersPage() {
 
   async function handleSaveReminder(e: React.FormEvent) {
     e.preventDefault();
-    
-    // Fallback baby ID if state is loading
-    const activeBabyId = baby?.id || localStorage.getItem('activeBabyId') || '';
-    if (!activeBabyId || !title.trim()) {
-      alert('Selecione ou crie um bebê para adicionar um lembrete.');
+
+    if (!title.trim()) {
+      alert('Por favor, digite o título do lembrete.');
       return;
     }
+
+    const activeBabyId = baby?.id || localStorage.getItem('activeBabyId') || '';
 
     setSubmitting(true);
     try {
@@ -92,7 +233,7 @@ export default function RemindersPage() {
           }),
         });
       } else {
-        await fetch('/api/reminders', {
+        const res = await fetch('/api/reminders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -102,6 +243,12 @@ export default function RemindersPage() {
             color,
           }),
         });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          alert(errData.error || 'Erro ao criar lembrete');
+          return;
+        }
       }
 
       setShowModal(false);
@@ -111,12 +258,14 @@ export default function RemindersPage() {
       await loadReminders();
     } catch (e) {
       console.error(e);
+      alert('Erro de rede ao salvar lembrete');
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
     if (!confirm('Deseja remover este lembrete do mural?')) return;
     try {
       await fetch(`/api/reminders?id=${id}`, { method: 'DELETE' });
@@ -143,14 +292,14 @@ export default function RemindersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-amber-100 via-rose-50 to-pink-100 dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 border border-amber-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-xs dark:shadow-xl">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 bg-white/80 dark:bg-amber-500/10 px-3 py-1 rounded-full border border-amber-200 dark:border-amber-500/20">
-            Mural de Post-its
+            Mural Interativo de Post-its
           </span>
           <h2 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-slate-100 mt-2 flex items-center gap-2">
             <StickyNote className="text-amber-500" size={24} />
             Mural de Lembretes de {baby?.name || 'Seu Bebê'}
           </h2>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-medium">
-            Fixe recados importantes, lembretes de fraldas, medicamentos e avisos do dia a dia.
+            Arraste os post-its livremente, dê zoom (+ / -) e organize seu quadro como desejar.
           </p>
         </div>
 
@@ -163,56 +312,151 @@ export default function RemindersPage() {
         </button>
       </div>
 
-      {/* Pinboard Grid */}
-      <div className="bg-amber-50/40 dark:bg-slate-950/60 border border-amber-200/60 dark:border-slate-800/80 rounded-3xl p-6 sm:p-8 min-h-[400px]">
-        {safeReminders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400 space-y-2">
-            <Pin size={36} className="text-amber-400 opacity-60 animate-bounce" />
-            <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Seu mural está vazio!</p>
-            <p className="text-xs text-slate-400 max-w-xs">Clique no botão acima para afixar o primeiro lembrete colorido no mural de {baby?.name || 'seu bebê'}.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {safeReminders.map((rem) => {
-              const colorObj = colors.find((c) => c.id === rem.color) || colors[0];
-              return (
-                <div
-                  key={rem.id}
-                  className={`relative p-5 rounded-2xl border shadow-md transition-all hover:scale-105 hover:rotate-1 rotate-[-1deg] flex flex-col justify-between ${colorObj.bgLight} ${colorObj.bgDark}`}
-                >
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-rose-500 drop-shadow-md">
-                    <Pin size={22} className="rotate-45 fill-rose-500 text-rose-600" />
-                  </div>
+      {/* DYNAMIC & INTERACTIVE PINBOARD CANVAS BOX */}
+      <div className="relative bg-amber-50/30 dark:bg-slate-950/70 border border-amber-200/60 dark:border-slate-800 rounded-3xl overflow-hidden shadow-inner min-h-[550px]">
+        {/* Floating Zoom & Canvas Controls */}
+        <div className="absolute top-4 right-4 z-20 flex items-center space-x-1.5 bg-white/90 dark:bg-slate-900/90 border border-amber-200/80 dark:border-slate-800 p-1.5 rounded-2xl shadow-lg backdrop-blur-md">
+          {/* Botão Alinhar Grid */}
+          <button
+            onClick={() => handleAlignGrid()}
+            className="p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5 text-xs font-bold"
+            title="Alinhar Automático em Grid"
+          >
+            <LayoutGrid size={15} className="text-amber-600 dark:text-amber-400" />
+            <span className="hidden sm:inline">Alinhar</span>
+          </button>
 
-                  <div className="space-y-2 pt-2">
-                    <h3 className="text-sm font-extrabold tracking-tight leading-snug">{rem.title}</h3>
-                    {rem.content && <p className="text-xs font-medium opacity-90 whitespace-pre-wrap">{rem.content}</p>}
-                  </div>
+          {/* Botão Ordenar por Cor */}
+          <button
+            onClick={handleSortByColor}
+            className="p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-rose-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5 text-xs font-bold"
+            title="Agrupar e Ordenar por Cor"
+          >
+            <Palette size={15} className="text-rose-500" />
+            <span className="hidden sm:inline">Ordenar por Cor</span>
+          </button>
 
-                  <div className="mt-4 pt-3 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-[10px] font-semibold opacity-75">
-                    <span>{new Date(rem.createdAt).toLocaleDateString('pt-BR')}</span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleOpenEdit(rem)}
-                        className="p-1 hover:opacity-100 transition-opacity"
-                        title="Editar Post-it"
-                      >
-                        <Edit2 size={13} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(rem.id)}
-                        className="p-1 hover:text-red-600 transition-colors"
-                        title="Remover Post-it"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+          <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-1" />
+
+          <button
+            onClick={handleZoomIn}
+            className="p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            title="Aumentar Zoom (+)"
+          >
+            <ZoomIn size={16} />
+          </button>
+          <span className="text-xs font-mono font-bold text-slate-600 dark:text-slate-300 px-1">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            onClick={handleZoomOut}
+            className="p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            title="Reduzir Zoom (-)"
+          >
+            <ZoomOut size={16} />
+          </button>
+          <div className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-1" />
+          <button
+            onClick={handleResetZoom}
+            className="p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            title="Resetar Posição e Zoom"
+          >
+            <RotateCcw size={16} />
+          </button>
+        </div>
+
+        {/* Floating Help Badge */}
+        <div className="absolute top-4 left-4 z-20 hidden sm:flex items-center space-x-1.5 bg-white/80 dark:bg-slate-900/80 border border-amber-200/50 dark:border-slate-800 px-3 py-1.5 rounded-2xl text-[11px] text-slate-500 dark:text-slate-400 font-medium backdrop-blur-md pointer-events-none">
+          <Move size={13} className="text-amber-500" />
+          <span>Arraste os post-its livremente ou mova o fundo do quadro</span>
+        </div>
+
+        {/* Interactive Viewport Canvas Area */}
+        <div
+          onMouseDown={handleMouseDownCanvas}
+          onMouseMove={handleMouseMoveCanvas}
+          onMouseUp={handleMouseUpCanvas}
+          onMouseLeave={handleMouseUpCanvas}
+          onTouchStart={handleTouchStartCanvas}
+          onTouchMove={handleTouchMoveCanvas}
+          onTouchEnd={handleTouchEndCanvas}
+          className={`w-full h-[550px] relative select-none cursor-grab active:cursor-grabbing overflow-hidden ${
+            isPanning ? 'cursor-grabbing' : ''
+          }`}
+          style={{
+            backgroundImage: 'radial-gradient(circle, rgba(217, 119, 6, 0.12) 1px, transparent 1px)',
+            backgroundSize: '24px 24px',
+          }}
+        >
+          {/* Pan & Zoom Container */}
+          <div
+            className="w-full h-full relative transition-transform duration-75 ease-out origin-top-left"
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            }}
+          >
+            {safeReminders.length === 0 ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-slate-400 space-y-2 pointer-events-none">
+                <Pin size={42} className="text-amber-400 opacity-60 animate-bounce" />
+                <p className="text-base font-bold text-slate-600 dark:text-slate-300">Seu mural está pronto!</p>
+                <p className="text-xs text-slate-400 max-w-xs">
+                  Adicione quantos pins quiser clicando em "+ Novo Pin / Post-it".
+                </p>
+              </div>
+            ) : (
+              safeReminders.map((rem, idx) => {
+                const colorObj = colors.find((c) => c.id === rem.color) || colors[0];
+                const pos = positions[rem.id] || { x: 40 + (idx % 3) * 260, y: 40 + Math.floor(idx / 3) * 220 };
+                const isDraggingThis = draggingPinId === rem.id;
+
+                return (
+                  <div
+                    key={rem.id}
+                    onMouseDown={(e) => handleStartDragPin(e, rem.id)}
+                    onTouchStart={(e) => handleStartDragPinTouch(e, rem.id)}
+                    className={`absolute w-60 p-5 rounded-2xl border shadow-xl transition-shadow cursor-move flex flex-col justify-between ${
+                      colorObj.bgLight
+                    } ${colorObj.bgDark} ${isDraggingThis ? 'z-30 scale-105 shadow-2xl ring-2 ring-indigo-500' : 'z-10 hover:z-20'}`}
+                    style={{
+                      left: `${pos.x}px`,
+                      top: `${pos.y}px`,
+                    }}
+                  >
+                    {/* Pin Visual Indicator */}
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-rose-500 drop-shadow-md">
+                      <Pin size={22} className="rotate-45 fill-rose-500 text-rose-600" />
+                    </div>
+
+                    <div className="space-y-2 pt-2">
+                      <h3 className="text-sm font-extrabold tracking-tight leading-snug">{rem.title}</h3>
+                      {rem.content && <p className="text-xs font-medium opacity-90 whitespace-pre-wrap">{rem.content}</p>}
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-black/10 dark:border-white/10 flex items-center justify-between text-[10px] font-semibold opacity-75">
+                      <span>{new Date(rem.createdAt).toLocaleDateString('pt-BR')}</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => handleOpenEdit(e, rem)}
+                          className="p-1 hover:opacity-100 transition-opacity"
+                          title="Editar Post-it"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                        <button
+                          onClick={(e) => handleDelete(e, rem.id)}
+                          className="p-1 hover:text-red-600 transition-colors"
+                          title="Remover Post-it"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* New / Edit Pin Modal */}
@@ -223,7 +467,9 @@ export default function RemindersPage() {
               <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 📌 {editingId ? 'Editar Post-it' : `Afixar Lembrete em ${baby?.name || 'Seu Bebê'}`}
               </h3>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">✕</button>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
+                ✕
+              </button>
             </div>
 
             <form onSubmit={handleSaveReminder} className="space-y-4">

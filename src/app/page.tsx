@@ -17,13 +17,16 @@ import {
   Milk,
   Heart,
   CheckCircle2,
+  Moon,
 } from 'lucide-react';
 import { formatAge, translateColor, translateConsistency } from '@/lib/utils';
 import Link from 'next/link';
+import SmartNapModal from '@/components/nap/SmartNapModal';
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isNapModalOpen, setIsNapModalOpen] = useState(false);
 
   // Breastfeeding / Feeding Timer State
   const [activeFeeding, setActiveFeeding] = useState<{
@@ -285,6 +288,22 @@ export default function DashboardPage() {
     });
   });
 
+  (data?.napSessions || []).forEach((n: any) => {
+    const reasonText = n.endReason === 'cry_detected' ? 'Encerrado por Choro 😭' : 'Finalizado Manualmente ☀️';
+    timeline.push({
+      id: n.id,
+      date: new Date(n.startedAt),
+      category: 'nap',
+      title: 'Soneca Inteligente 🌙',
+      subtitle: `Duração: ${n.durationMinutes || 0} min • ${reasonText}`,
+      notes: n.whiteNoiseUsed ? `Ruído branco: ${n.whiteNoiseUsed}` : undefined,
+      colorBadge: n.endReason === 'cry_detected'
+        ? 'bg-indigo-900/40 text-indigo-300 border-indigo-500/40'
+        : 'bg-indigo-100 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/20',
+      raw: n,
+    });
+  });
+
   timeline.sort((a, b) => b.date.getTime() - a.date.getTime());
 
   // Constipation Alert check
@@ -293,24 +312,68 @@ export default function DashboardPage() {
     ? (Date.now() - new Date(lastPoop.loggedAt).getTime()) / (1000 * 60 * 60)
     : 0;
 
+  const isBoy = baby?.gender === 'male';
+  const isGirl = baby?.gender === 'female';
+
+  const genderTheme = isBoy
+    ? {
+        banner: 'from-sky-100 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-sky-950 dark:to-slate-900 border-sky-200/80 dark:border-sky-800',
+        badge: 'text-sky-600 dark:text-sky-300 bg-white/80 dark:bg-sky-500/10 border-sky-200 dark:border-sky-500/20',
+        avatarBg: 'bg-gradient-to-tr from-sky-400 to-blue-500',
+        accentText: 'text-sky-500 dark:text-sky-300',
+      }
+    : isGirl
+    ? {
+        banner: 'from-rose-100 via-pink-50 to-purple-100 dark:from-slate-900 dark:via-rose-950 dark:to-slate-900 border-rose-200/80 dark:border-rose-800',
+        badge: 'text-rose-600 dark:text-rose-300 bg-white/80 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20',
+        avatarBg: 'bg-gradient-to-tr from-pink-400 to-rose-500',
+        accentText: 'text-rose-500 dark:text-rose-300',
+      }
+    : {
+        banner: 'from-amber-100 via-yellow-50 to-orange-100 dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 border-amber-200/80 dark:border-slate-800',
+        badge: 'text-amber-700 dark:text-amber-300 bg-white/80 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20',
+        avatarBg: 'bg-gradient-to-tr from-amber-400 to-orange-500',
+        accentText: 'text-amber-600 dark:text-indigo-300',
+      };
+
   return (
     <div className="space-y-6">
+      {/* Smart Nap Fullscreen Modal */}
+      <SmartNapModal
+        isOpen={isNapModalOpen}
+        onClose={() => {
+          setIsNapModalOpen(false);
+          loadData();
+        }}
+        babyId={baby?.id}
+      />
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-rose-100 via-pink-50 to-amber-50 dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 border border-rose-200/80 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm dark:shadow-2xl relative overflow-hidden transition-colors">
+      <div className={`bg-gradient-to-r ${genderTheme.banner} border rounded-3xl p-6 sm:p-8 shadow-sm dark:shadow-2xl relative overflow-hidden transition-all duration-300`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-500 dark:text-indigo-400 bg-white/80 dark:bg-indigo-500/10 px-3.5 py-1 rounded-full border border-rose-200 dark:border-indigo-500/20 shadow-xs">
-              Painel do Bebê
+            <span className={`text-xs font-bold uppercase tracking-wider px-3.5 py-1 rounded-full border shadow-xs ${genderTheme.badge}`}>
+              Painel do Bebê {isBoy ? '👦' : isGirl ? '👧' : '👶'}
             </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight mt-2">{baby?.name || 'Seu Bebê'}</h2>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight mt-2 flex items-center gap-2">
+              {baby?.name || 'Seu Bebê'}
+            </h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-2 font-medium">
-              <Calendar size={15} className="text-rose-400 dark:text-indigo-400" />
+              <Calendar size={15} className={genderTheme.accentText} />
               Idade: <strong className="text-slate-900 dark:text-white">{baby?.birthDate && formatAge(baby.birthDate)}</strong>
             </p>
           </div>
 
-          {/* Top Quick Stats: Diaper Counter & Antropometry */}
+          {/* Top Quick Stats: Diaper Counter & Antropometry & Smart Nap */}
           <div className="flex flex-wrap items-center gap-3">
+            {/* Smart Nap Button */}
+            <button
+              onClick={() => setIsNapModalOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs py-3 px-5 rounded-2xl shadow-lg shadow-indigo-500/20 active:scale-95 transition flex items-center gap-2"
+            >
+              <Moon size={16} className="fill-white" />
+              <span>🌙 Iniciar Soneca</span>
+            </button>
+
             {/* Diaper Counter */}
             <div className="bg-white/90 dark:bg-slate-950/60 border border-amber-200 dark:border-amber-500/30 p-3.5 rounded-2xl min-w-[120px] text-center shadow-xs">
               <span className="text-[10px] uppercase font-extrabold text-amber-600 dark:text-amber-400 tracking-wider">Fraldas Hoje</span>

@@ -19,6 +19,7 @@ model User {
   caretakers   BabyCaretaker[]
   bowelLogs    BowelMovement[]
   growthLogs   GrowthRecord[]
+  napSessions  NapSession[]
 
   @@map("users")
 }
@@ -37,6 +38,8 @@ model Baby {
   appointments MedicalAppointment[]
   reminders    Reminder[]
   feedings     FeedingLog[]
+  napSessions  NapSession[]
+  napSettings  NapSettings?
 
   @@map("babies")
 }
@@ -154,4 +157,32 @@ model FeedingLog {
   baby Baby @relation(fields: [babyId], references: [id], onDelete: Cascade)
 
   @@map("feeding_logs")
+}
+
+model NapSession {
+  id             String    @id @default(uuid())
+  babyId         String    @map("baby_id")
+  userId         String    @map("user_id")
+  startedAt      DateTime  @default(now()) @map("started_at")
+  endedAt        DateTime? @map("ended_at")
+  durationMinutes Int?     @map("duration_minutes")
+  endReason      String?   @map("end_reason") // 'manual', 'cry_detected', 'timer_limit'
+  whiteNoiseUsed String?   @map("white_noise_used")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  baby           Baby      @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id])
+
+  @@map("nap_sessions")
+}
+
+model NapSettings {
+  id               String   @id @default(uuid())
+  babyId           String   @unique @map("baby_id")
+  micSensitivity   String   @default("medium") @map("mic_sensitivity") // 'low', 'medium', 'high'
+  defaultWhiteNoise String  @default("white_noise") @map("default_white_noise")
+  
+  baby             Baby     @relation(fields: [babyId], references: [id], onDelete: Cascade)
+
+  @@map("nap_settings")
 }
