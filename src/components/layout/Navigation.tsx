@@ -52,12 +52,14 @@ export default function Navigation() {
     try {
       const res = await fetch('/api/babies');
       const data = await res.json();
-      setBabies(data);
+      const babyList = Array.isArray(data) ? data : [];
+      setBabies(babyList);
 
-      const activeId = localStorage.getItem('activeBabyId') || (data[0]?.id || '');
+      const activeId = localStorage.getItem('activeBabyId') || (babyList[0]?.id || '');
       setSelectedBabyId(activeId);
     } catch (e) {
       console.error(e);
+      setBabies([]);
     }
   }
 
@@ -117,7 +119,8 @@ export default function Navigation() {
     }
   }
 
-  const activeBaby = babies.find((b) => b.id === selectedBabyId) || babies[0];
+  const safeBabies = Array.isArray(babies) ? babies : [];
+  const activeBaby = safeBabies.find((b) => b.id === selectedBabyId) || safeBabies[0];
 
   const navItems = [
     { href: '/', label: 'Hoje / Dashboard', icon: Home },
