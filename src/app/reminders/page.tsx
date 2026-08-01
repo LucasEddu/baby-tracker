@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { StickyNote, Plus, Pin, Trash2, Edit2, Check, ZoomIn, ZoomOut, RotateCcw, Move, Palette, LayoutGrid } from 'lucide-react';
+import { StickyNote, Plus, Pin, Trash2, Edit2, Check, ZoomIn, ZoomOut, RotateCcw, Move, Palette, LayoutGrid, Bell, MessageCircle } from 'lucide-react';
 import ConfirmModal from '@/components/layout/ConfirmModal';
 
 export default function RemindersPage() {
@@ -15,6 +15,8 @@ export default function RemindersPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [color, setColor] = useState('yellow');
+  const [remindAt, setRemindAt] = useState('');
+  const [sendWhatsapp, setSendWhatsapp] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   // Canvas / Pan Zoom & Drag states
@@ -198,6 +200,8 @@ export default function RemindersPage() {
     setTitle('');
     setContent('');
     setColor('yellow');
+    setRemindAt('');
+    setSendWhatsapp(true);
     setShowModal(true);
   }
 
@@ -207,7 +211,21 @@ export default function RemindersPage() {
     setTitle(rem.title);
     setContent(rem.content || '');
     setColor(rem.color || 'yellow');
+    setRemindAt(rem.remindAt ? new Date(rem.remindAt).toISOString().slice(0, 16) : '');
+    setSendWhatsapp(!!rem.sendWhatsapp);
     setShowModal(true);
+  }
+
+  // Função para abrir disparo direto de notificação via WhatsApp (api.whatsapp.com / wa.me)
+  function sendWhatsappNotification(userPhone: string, titleText: string, contentText: string, timeText: string) {
+    const cleanPhone = userPhone.replace(/\D/g, '');
+    const message = `👶 *Baby Tracker - Lembrete de Cuidados*\n\n📌 *Lembrete:* ${titleText}\n${contentText ? `📝 *Detalhes:* ${contentText}\n` : ''}${timeText ? `⏰ *Horário Programado:* ${timeText}\n` : ''}\n_Enviado automaticamente pelo Baby Tracker_`;
+    
+    const whatsappUrl = cleanPhone 
+      ? `https://api.whatsapp.com/send?phone=55${cleanPhone}&text=${encodeURIComponent(message)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+    
+    window.open(whatsappUrl, '_blank');
   }
 
   async function handleSaveReminder(e: React.FormEvent) {
@@ -231,6 +249,8 @@ export default function RemindersPage() {
             title: title.trim(),
             content: content.trim(),
             color,
+            remindAt,
+            sendWhatsapp,
           }),
         });
       } else {
@@ -242,6 +262,8 @@ export default function RemindersPage() {
             title: title.trim(),
             content: content.trim(),
             color,
+            remindAt,
+            sendWhatsapp,
           }),
         });
 
@@ -252,9 +274,17 @@ export default function RemindersPage() {
         }
       }
 
+      // Se a opção de notificação por WhatsApp estiver marcada, dispara o envio do lembrete
+      if (sendWhatsapp) {
+        const phone = localStorage.getItem('userPhone') || '';
+        const timeFormatted = remindAt ? new Date(remindAt).toLocaleString('pt-BR') : '';
+        sendWhatsappNotification(phone, title.trim(), content.trim(), timeFormatted);
+      }
+
       setShowModal(false);
       setTitle('');
       setContent('');
+      setRemindAt('');
       setEditingId(null);
       await loadReminders();
     } catch (e) {
@@ -528,12 +558,46 @@ export default function RemindersPage() {
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Descrição / Detalhes (Opcional)</label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   placeholder="Ex: 5ml de Paracetamol prescrito pela Dra. Camila..."
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-rose-400 dark:focus:border-indigo-500 font-medium resize-none"
                 ></textarea>
+              </div>
+
+              {/* Data e Hora Programada para o Alarme */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1 flex items-center gap-1">
+                  <Bell size={14} className="text-amber-500" />
+                  <span>Horário Programado do Alarme / Lembrete</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={remindAt}
+                  onChange={(e) => setRemindAt(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-rose-400 dark:focus:border-indigo-500 font-medium"
+                />
+              </div>
+
+              {/* Checkbox Notificação via WhatsApp */}
+              <div
+                onClick={() => setSendWhatsapp(!sendWhatsapp)}
+                className="flex items-center justify-between p-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/50 dark:bg-emerald-500/10 cursor-pointer transition active:scale-98"
+              >
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
+                    <MessageCircle size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Notificação via WhatsApp 📲</h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Enviar cópia da notificação para o seu celular</p>
+                  </div>
+                </div>
+
+                <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition ${sendWhatsapp ? 'bg-emerald-500 border-emerald-600 text-white' : 'border-slate-300 dark:border-slate-700'}`}>
+                  {sendWhatsapp && <Check size={14} className="font-black" />}
+                </div>
               </div>
 
               <div className="pt-2 flex gap-2">
