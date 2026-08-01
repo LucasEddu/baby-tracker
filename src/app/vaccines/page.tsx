@@ -38,9 +38,10 @@ export default function VaccinesPage() {
 
       const res = await fetch(`/api/vaccines?babyId=${babyData?.baby?.id || ''}`);
       const data = await res.json();
-      setVaccines(data);
+      setVaccines(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
+      setVaccines([]);
     } finally {
       setLoading(false);
     }

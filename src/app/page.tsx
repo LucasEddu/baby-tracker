@@ -22,6 +22,7 @@ import {
 import { formatAge, translateColor, translateConsistency } from '@/lib/utils';
 import Link from 'next/link';
 import SmartNapModal from '@/components/nap/SmartNapModal';
+import ConfirmModal from '@/components/layout/ConfirmModal';
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
@@ -202,24 +203,51 @@ export default function DashboardPage() {
     }
   }
 
+  // Custom Confirm Modal State
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
   async function handleDeleteDiaper(id: string) {
-    if (!confirm('Deseja realmente excluir este registro de troca?')) return;
-    try {
-      await fetch(`/api/bowel-movements?id=${id}`, { method: 'DELETE' });
-      await loadData();
-    } catch (e) {
-      console.error(e);
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Excluir Registro de Fralda',
+      message: 'Tem certeza que deseja remover este registro de troca de fralda?',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await fetch(`/api/bowel-movements?id=${id}`, { method: 'DELETE' });
+          await loadData();
+        } catch (e) {
+          console.error(e);
+        }
+      },
+    });
   }
 
   async function handleDeleteFeeding(id: string) {
-    if (!confirm('Deseja remover este registro de amamentação?')) return;
-    try {
-      await fetch(`/api/feedings?id=${id}`, { method: 'DELETE' });
-      await loadData();
-    } catch (e) {
-      console.error(e);
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Excluir Registro de Amamentação',
+      message: 'Tem certeza que deseja remover este registro de mamada?',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await fetch(`/api/feedings?id=${id}`, { method: 'DELETE' });
+          await loadData();
+        } catch (e) {
+          console.error(e);
+        }
+      },
+    });
   }
 
   if (loading) {
@@ -774,6 +802,14 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      {/* Custom Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }
