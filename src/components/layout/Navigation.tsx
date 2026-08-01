@@ -11,11 +11,18 @@ import { useAuth } from '@/lib/authContext';
 
 export default function Navigation() {
   const pathname = usePathname();
-  const { user, profile, logout } = useAuth();
+  const { user, profile, logout, loading: authLoading } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+
+  // Abrir modal de Login automaticamente no primeiro acesso se não estiver logado
+  useEffect(() => {
+    if (!authLoading && !user) {
+      setShowAuthModal(true);
+    }
+  }, [authLoading, user]);
 
   const [babies, setBabies] = useState<any[]>([]);
   const [selectedBabyId, setSelectedBabyId] = useState<string>('');
