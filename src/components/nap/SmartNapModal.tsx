@@ -188,6 +188,18 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
       });
     } catch {}
 
+    // Disparar Notificação Nativa / Celular se permitido
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('👶 O Bebê Acordou! (Choro Detectado)', {
+          body: `O monitor de soneca detectou o choro do bebê após ${durationMin} minuto(s) de sono.`,
+          icon: '/icon.png',
+        });
+      } catch (e) {
+        console.error('Erro ao disparar notificação local:', e);
+      }
+    }
+
     setEndAlert({
       show: true,
       reason: 'cry_detected',
