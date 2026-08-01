@@ -32,13 +32,14 @@ export default function GrowthPage() {
       const activeBabyId = localStorage.getItem('activeBabyId') || '';
       const babyRes = await fetch(`/api/bowel-movements?babyId=${activeBabyId}`);
       const babyData = await babyRes.json();
-      setBaby(babyData.baby);
+      setBaby(babyData?.baby || null);
 
       const growthRes = await fetch(`/api/growth?babyId=${babyData?.baby?.id || ''}`);
       const growthData = await growthRes.json();
-      setRecords(growthData);
+      setRecords(Array.isArray(growthData) ? growthData : []);
     } catch (e) {
       console.error(e);
+      setRecords([]);
     } finally {
       setLoading(false);
     }
@@ -118,7 +119,9 @@ export default function GrowthPage() {
     }
   }
 
-  const chartData = records.map((r) => ({
+  const safeRecords = Array.isArray(records) ? records : [];
+
+  const chartData = safeRecords.map((r) => ({
     date: new Date(r.measuredAt).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' }),
     pesoKg: +(r.weightGrams / 1000).toFixed(2),
     alturaCm: r.heightCm,
