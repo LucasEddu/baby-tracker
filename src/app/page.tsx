@@ -64,8 +64,9 @@ export default function DashboardPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const activeBabyId = localStorage.getItem('activeBabyId') || '';
-      const res = await fetch(`/api/bowel-movements?babyId=${activeBabyId}`);
+      const stored = localStorage.getItem('activeBabyId');
+      const activeBabyId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : '';
+      const res = await fetch(`/api/bowel-movements${activeBabyId ? `?babyId=${activeBabyId}` : ''}`);
       const json = await res.json();
       setData(json);
     } catch (e) {

@@ -41,12 +41,13 @@ export default function AppointmentsPage() {
   async function loadAppointments() {
     setLoading(true);
     try {
-      const activeBabyId = localStorage.getItem('activeBabyId') || '';
-      const babyRes = await fetch(`/api/bowel-movements?babyId=${activeBabyId}`);
+      const stored = localStorage.getItem('activeBabyId');
+      const activeBabyId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : '';
+      const babyRes = await fetch(`/api/bowel-movements${activeBabyId ? `?babyId=${activeBabyId}` : ''}`);
       const babyData = await babyRes.json();
       setBaby(babyData.baby);
 
-      const res = await fetch(`/api/appointments?babyId=${babyData?.baby?.id || ''}`);
+      const res = await fetch(`/api/appointments${babyData?.baby?.id ? `?babyId=${babyData.baby.id}` : ''}`);
       const data = await res.json();
       setAppointments(Array.isArray(data) ? data : []);
     } catch (e) {

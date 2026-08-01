@@ -31,12 +31,13 @@ export default function VaccinesPage() {
   async function loadVaccines() {
     setLoading(true);
     try {
-      const activeBabyId = localStorage.getItem('activeBabyId') || '';
-      const babyRes = await fetch(`/api/bowel-movements?babyId=${activeBabyId}`);
+      const stored = localStorage.getItem('activeBabyId');
+      const activeBabyId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : '';
+      const babyRes = await fetch(`/api/bowel-movements${activeBabyId ? `?babyId=${activeBabyId}` : ''}`);
       const babyData = await babyRes.json();
       setBaby(babyData.baby);
 
-      const res = await fetch(`/api/vaccines?babyId=${babyData?.baby?.id || ''}`);
+      const res = await fetch(`/api/vaccines${babyData?.baby?.id ? `?babyId=${babyData.baby.id}` : ''}`);
       const data = await res.json();
       setVaccines(Array.isArray(data) ? data : []);
     } catch (e) {

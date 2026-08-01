@@ -65,7 +65,11 @@ export default function Navigation() {
       const babyList = Array.isArray(data) ? data : [];
       setBabies(babyList);
 
-      const activeId = localStorage.getItem('activeBabyId') || (babyList[0]?.id || '');
+      const stored = localStorage.getItem('activeBabyId');
+      const activeId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : (babyList[0]?.id || '');
+      if (activeId) {
+        localStorage.setItem('activeBabyId', activeId);
+      }
       setSelectedBabyId(activeId);
     } catch (e) {
       console.error(e);

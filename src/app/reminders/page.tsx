@@ -65,9 +65,10 @@ export default function RemindersPage() {
   async function loadReminders() {
     setLoading(true);
     try {
-      const activeBabyId = localStorage.getItem('activeBabyId') || '';
+      const stored = localStorage.getItem('activeBabyId');
+      const activeBabyId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : '';
 
-      const babyRes = await fetch(`/api/bowel-movements?babyId=${activeBabyId}`);
+      const babyRes = await fetch(`/api/bowel-movements${activeBabyId ? `?babyId=${activeBabyId}` : ''}`);
       const babyData = await babyRes.json();
       const currentBaby = babyData?.baby;
       setBaby(currentBaby);

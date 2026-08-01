@@ -29,12 +29,13 @@ export default function GrowthPage() {
   async function loadGrowth() {
     setLoading(true);
     try {
-      const activeBabyId = localStorage.getItem('activeBabyId') || '';
-      const babyRes = await fetch(`/api/bowel-movements?babyId=${activeBabyId}`);
+      const stored = localStorage.getItem('activeBabyId');
+      const activeBabyId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : '';
+      const babyRes = await fetch(`/api/bowel-movements${activeBabyId ? `?babyId=${activeBabyId}` : ''}`);
       const babyData = await babyRes.json();
       setBaby(babyData?.baby || null);
 
-      const growthRes = await fetch(`/api/growth?babyId=${babyData?.baby?.id || ''}`);
+      const growthRes = await fetch(`/api/growth${babyData?.baby?.id ? `?babyId=${babyData.baby.id}` : ''}`);
       const growthData = await growthRes.json();
       setRecords(Array.isArray(growthData) ? growthData : []);
     } catch (e) {

@@ -6,7 +6,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const babyId = searchParams.get('babyId');
 
-    const validBabyId = (babyId && babyId !== 'undefined' && babyId !== 'null') ? babyId : null;
+    const validBabyId = (babyId && babyId !== 'undefined' && babyId !== 'null' && babyId !== '') ? babyId : null;
 
     let baby: any = null;
     try {
@@ -23,6 +23,10 @@ export async function GET(request: Request) {
     };
 
     const targetBaby = baby || defaultBaby;
+
+    // Start of today (midnight)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
 
     let bowel: any[] = [];
     let todayDiaperCount = 0;
