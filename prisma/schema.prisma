@@ -36,6 +36,7 @@ model Baby {
   vaccines     VaccineApplication[]
   appointments MedicalAppointment[]
   reminders    Reminder[]
+  feedings     FeedingLog[]
 
   @@map("babies")
 }
@@ -58,7 +59,7 @@ model BowelMovement {
   babyId      String   @map("baby_id")
   userId      String   @map("user_id")
   loggedAt    DateTime @default(now()) @map("logged_at")
-  type        String   @default("POOP")
+  type        String   @default("POOP") // 'POOP' | 'PEE' | 'BOTH'
   color       String?
   consistency String?
   notes       String?
@@ -133,10 +134,24 @@ model Reminder {
   babyId    String   @map("baby_id")
   title     String
   content   String?
-  color     String   @default("yellow") // 'yellow' | 'rose' | 'emerald' | 'indigo' | 'purple' | 'sky'
+  color     String   @default("yellow")
   createdAt DateTime @default(now()) @map("created_at")
 
   baby Baby @relation(fields: [babyId], references: [id], onDelete: Cascade)
 
   @@map("reminders")
+}
+
+model FeedingLog {
+  id         String   @id @default(uuid())
+  babyId     String   @map("baby_id")
+  side       String   // 'LEFT_BREAST' | 'RIGHT_BREAST' | 'BOTTLE'
+  durationSec Int     @map("duration_sec")
+  amountMl   Int?     @map("amount_ml")
+  startedAt  DateTime @default(now()) @map("started_at")
+  notes      String?
+
+  baby Baby @relation(fields: [babyId], references: [id], onDelete: Cascade)
+
+  @@map("feeding_logs")
 }

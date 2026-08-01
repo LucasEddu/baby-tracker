@@ -11,12 +11,23 @@ export async function GET(request: Request) {
       : await prisma.baby.findFirst();
 
     if (!baby) {
-      return NextResponse.json({ baby: null, bowel: [], growth: [], vaccines: [], appointments: [] });
+      return NextResponse.json({ baby: null, bowel: [], growth: [], vaccines: [], appointments: [], feedings: [], todayDiaperCount: 0 });
     }
+
+    // Start of today (midnight)
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
 
     const bowel = await prisma.bowelMovement.findMany({
       where: { babyId: baby.id },
       orderBy: { loggedAt: 'desc' },
+    });
+
+    const todayDiaperCount = await prisma.bowelMovement.count({
+      where: {
+        babyId: baby.id,
+        loggedAt: { gte: startOfToday },
+      },
     });
 
     const growth = await prisma.growthRecord.findMany({
@@ -35,12 +46,19 @@ export async function GET(request: Request) {
       orderBy: { appointmentDate: 'desc' },
     });
 
+    const feedings = await prisma.feedingLog.findMany({
+      where: { babyId: baby.id },
+      orderBy: { startedAt: 'desc' },
+    });
+
     return NextResponse.json({
       baby,
       bowel,
       growth,
       vaccines,
       appointments,
+      feedings,
+      todayDiaperCount,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -57,8 +75,8 @@ export async function POST(request: Request) {
         babyId,
         userId: userId || (await prisma.user.findFirst())?.id || 'demo-user',
         type,
-        color,
-        consistency,
+        color: color || (type === 'POOP' || type === 'BOTH' ? 'YELLOW' : null),
+        consistency: consistency || (type === 'POOP' || type === 'BOTH' ? 'PASTY' : null),
         notes,
         loggedAt: new Date(),
       },

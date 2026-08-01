@@ -1,15 +1,39 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Droplet, Sparkles, Plus, AlertTriangle, Calendar, Clock, ChevronRight, Edit2, Trash2 } from 'lucide-react';
+import {
+  Droplet,
+  Plus,
+  AlertTriangle,
+  Calendar,
+  Clock,
+  ChevronRight,
+  Edit2,
+  Trash2,
+  Play,
+  Square,
+  Baby,
+  Sparkles,
+  Milk,
+  Heart,
+  CheckCircle2,
+} from 'lucide-react';
 import { formatAge, translateColor, translateConsistency } from '@/lib/utils';
 import Link from 'next/link';
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Create / Edit Diaper Modal state
+
+  // Breastfeeding / Feeding Timer State
+  const [activeFeeding, setActiveFeeding] = useState<{
+    side: 'LEFT_BREAST' | 'RIGHT_BREAST' | 'BOTTLE';
+    startTime: number;
+    elapsedSec: number;
+  } | null>(null);
+  const [bottleMl, setBottleMl] = useState('120');
+
+  // Diaper Modal state (For manual/detailed edits if needed)
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [diaperType, setDiaperType] = useState<'POOP' | 'PEE' | 'BOTH'>('POOP');
@@ -17,6 +41,21 @@ export default function DashboardPage() {
   const [consistency, setConsistency] = useState('PASTY');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Timer interval effect
+  useEffect(() => {
+    let interval: any = null;
+    if (activeFeeding) {
+      interval = setInterval(() => {
+        setActiveFeeding((prev) =>
+          prev
+            ? { ...prev, elapsedSec: Math.floor((Date.now() - prev.startTime) / 1000) }
+            : null
+        );
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [activeFeeding]);
 
   async function loadData() {
     setLoading(true);
@@ -36,6 +75,69 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
+  // Quick 1-Click Diaper Event logger
+  async function handleQuickDiaperLog(type: 'PEE' | 'POOP' | 'BOTH') {
+    if (!data?.baby?.id) return;
+    try {
+      await fetch('/api/bowel-movements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          babyId: data.baby.id,
+          type,
+          color: type !== 'PEE' ? 'YELLOW' : null,
+          consistency: type !== 'PEE' ? 'PASTY' : null,
+          notes: 'Registro rápido de 1-toque',
+        }),
+      });
+      await loadData();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // Feeding Timer Controls
+  function startFeeding(side: 'LEFT_BREAST' | 'RIGHT_BREAST' | 'BOTTLE') {
+    setActiveFeeding({
+      side,
+      startTime: Date.now(),
+      elapsedSec: 0,
+    });
+  }
+
+  async function stopAndSaveFeeding() {
+    if (!activeFeeding || !data?.baby?.id) return;
+
+    try {
+      await fetch('/api/feedings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          babyId: data.baby.id,
+          side: activeFeeding.side,
+          durationSec: activeFeeding.elapsedSec,
+          amountMl: activeFeeding.side === 'BOTTLE' ? parseInt(bottleMl, 10) : null,
+          notes:
+            activeFeeding.side === 'BOTTLE'
+              ? `Mamadeira de ${bottleMl}ml`
+              : `Mamada no peito ${activeFeeding.side === 'LEFT_BREAST' ? 'esquerdo' : 'direito'}`,
+        }),
+      });
+
+      setActiveFeeding(null);
+      await loadData();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function formatTimer(sec: number) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
+  // Detailed Modal Handlers
   function handleOpenCreate() {
     setEditingId(null);
     setDiaperType('POOP');
@@ -61,7 +163,6 @@ export default function DashboardPage() {
     setSubmitting(true);
     try {
       if (editingId) {
-        // Edit existing log
         await fetch('/api/bowel-movements', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -74,7 +175,6 @@ export default function DashboardPage() {
           }),
         });
       } else {
-        // Create new log
         await fetch('/api/bowel-movements', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -109,6 +209,16 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleDeleteFeeding(id: string) {
+    if (!confirm('Deseja remover este registro de amamentação?')) return;
+    try {
+      await fetch(`/api/feedings?id=${id}`, { method: 'DELETE' });
+      await loadData();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-slate-400">
@@ -121,8 +231,10 @@ export default function DashboardPage() {
   const baby = data?.baby;
   const bowelList = data?.bowel || [];
   const latestGrowth = data?.growth?.[0];
+  const feedings = data?.feedings || [];
+  const todayDiaperCount = data?.todayDiaperCount || 0;
 
-  // Combined timeline
+  // Combined timeline build
   const timeline: any[] = [];
 
   bowelList.forEach((b: any) => {
@@ -135,6 +247,28 @@ export default function DashboardPage() {
       notes: b.notes,
       colorBadge: b.color === 'ALERT_BLOOD' ? 'bg-red-500/20 text-red-500 border-red-300' : 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20',
       raw: b,
+    });
+  });
+
+  feedings.forEach((f: any) => {
+    const sideText =
+      f.side === 'LEFT_BREAST'
+        ? 'Peito Esquerdo 🤱'
+        : f.side === 'RIGHT_BREAST'
+        ? 'Peito Direito 🤱'
+        : `Mamadeira 🍼 (${f.amountMl || 0}ml)`;
+
+    const min = Math.floor((f.durationSec || 0) / 60);
+
+    timeline.push({
+      id: f.id,
+      date: new Date(f.startedAt),
+      category: 'feeding',
+      title: 'Amamentação / Mamada 🍼',
+      subtitle: `${sideText} • Duração: ${min > 0 ? `${min} min` : `${f.durationSec} sec`}`,
+      notes: f.notes,
+      colorBadge: 'bg-rose-100 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/20',
+      raw: f,
     });
   });
 
@@ -153,7 +287,7 @@ export default function DashboardPage() {
 
   timeline.sort((a, b) => b.date.getTime() - a.date.getTime());
 
-  // Constipation Alert check (if no poop for over 36h)
+  // Constipation Alert check
   const lastPoop = bowelList.find((b: any) => b.type === 'POOP' || b.type === 'BOTH');
   const hoursSincePoop = lastPoop
     ? (Date.now() - new Date(lastPoop.loggedAt).getTime()) / (1000 * 60 * 60)
@@ -161,22 +295,28 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner with Warm Childish Palette (Light Mode) and Sleek Indigo (Dark Mode) */}
+      {/* Top Banner */}
       <div className="bg-gradient-to-r from-rose-100 via-pink-50 to-amber-50 dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 border border-rose-200/80 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm dark:shadow-2xl relative overflow-hidden transition-colors">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-rose-500 dark:text-indigo-400 bg-white/80 dark:bg-indigo-500/10 px-3.5 py-1 rounded-full border border-rose-200 dark:border-indigo-500/20 shadow-xs">
               Painel do Bebê
             </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight mt-2">{baby?.name || 'Seu Bebê'}</h2>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight mt-2">{baby?.name || 'Seu Bebê'}</h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-2 font-medium">
               <Calendar size={15} className="text-rose-400 dark:text-indigo-400" />
               Idade: <strong className="text-slate-900 dark:text-white">{baby?.birthDate && formatAge(baby.birthDate)}</strong>
             </p>
           </div>
 
-          {/* Quick Metrics Cards */}
+          {/* Top Quick Stats: Diaper Counter & Antropometry */}
           <div className="flex flex-wrap items-center gap-3">
+            {/* Diaper Counter */}
+            <div className="bg-white/90 dark:bg-slate-950/60 border border-amber-200 dark:border-amber-500/30 p-3.5 rounded-2xl min-w-[120px] text-center shadow-xs">
+              <span className="text-[10px] uppercase font-extrabold text-amber-600 dark:text-amber-400 tracking-wider">Fraldas Hoje</span>
+              <p className="text-xl font-black text-amber-700 dark:text-amber-300">{todayDiaperCount} fralda(s)</p>
+            </div>
+
             {latestGrowth && (
               <>
                 <div className="bg-white/90 dark:bg-slate-950/60 border border-rose-100 dark:border-slate-800 p-3.5 rounded-2xl min-w-[110px] text-center shadow-xs">
@@ -187,21 +327,145 @@ export default function DashboardPage() {
                   <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Estatura</span>
                   <p className="text-lg font-black text-emerald-600 dark:text-emerald-300">{latestGrowth.heightCm} cm</p>
                 </div>
-                <div className="bg-white/90 dark:bg-slate-950/60 border border-rose-100 dark:border-slate-800 p-3.5 rounded-2xl min-w-[110px] text-center shadow-xs">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Perímetro</span>
-                  <p className="text-lg font-black text-amber-600 dark:text-amber-300">{latestGrowth.headCircCm || '-'} cm</p>
-                </div>
               </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* BREASTFEEDING / FEEDING TIMER SECTION */}
+      <div className="bg-white dark:bg-slate-900 border border-rose-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl space-y-4">
+        <div className="flex items-center justify-between border-b border-rose-100 dark:border-slate-800 pb-3">
+          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <Heart size={20} className="text-rose-500 fill-rose-400" />
+            Cronômetro de Amamentação & Alimentação
+          </h3>
+          {activeFeeding && (
+            <span className="text-xs font-black text-rose-500 bg-rose-50 dark:bg-rose-500/10 px-3 py-1 rounded-full animate-pulse border border-rose-200">
+              Amamentação em Andamento ⏱️
+            </span>
+          )}
+        </div>
+
+        {/* Active Feeding Timer Display */}
+        {activeFeeding ? (
+          <div className="bg-gradient-to-r from-rose-50 to-pink-50 dark:from-slate-950 dark:to-slate-900 border-2 border-rose-400 dark:border-indigo-500 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-lg">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-rose-500 text-white flex items-center justify-center text-2xl font-bold shadow-md">
+                {activeFeeding.side === 'BOTTLE' ? '🍼' : '🤱'}
+              </div>
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-rose-500 dark:text-indigo-400">
+                  {activeFeeding.side === 'LEFT_BREAST'
+                    ? 'Peito Esquerdo'
+                    : activeFeeding.side === 'RIGHT_BREAST'
+                    ? 'Peito Direito'
+                    : 'Mamadeira'}
+                </span>
+                <h4 className="text-3xl font-black text-slate-800 dark:text-slate-100 font-mono mt-0.5">
+                  {formatTimer(activeFeeding.elapsedSec)}
+                </h4>
+              </div>
+            </div>
+
+            {activeFeeding.side === 'BOTTLE' && (
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Quantidade (ml):</label>
+                <input
+                  type="number"
+                  value={bottleMl}
+                  onChange={(e) => setBottleMl(e.target.value)}
+                  className="w-20 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs text-center font-bold text-slate-800 dark:text-white"
+                />
+              </div>
             )}
 
             <button
-              onClick={handleOpenCreate}
-              className="py-3.5 px-6 bg-gradient-to-r from-rose-400 to-pink-500 dark:from-indigo-600 dark:to-violet-600 hover:from-rose-500 hover:to-pink-600 text-white font-bold text-sm rounded-2xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
+              onClick={stopAndSaveFeeding}
+              className="w-full sm:w-auto px-6 py-3 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-2xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              <Plus size={20} />
-              <span>Novo Registro Rápido</span>
+              <Square size={16} fill="white" />
+              <span>Finalizar & Salvar Mamada</span>
             </button>
           </div>
+        ) : (
+          /* Start Feeding Buttons */
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button
+              onClick={() => startFeeding('LEFT_BREAST')}
+              className="p-4 bg-rose-50 hover:bg-rose-100/80 dark:bg-slate-950/70 dark:hover:bg-slate-800 border border-rose-200 dark:border-slate-800 rounded-2xl flex items-center justify-between group transition-all"
+            >
+              <div className="text-left">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-500">Amamentar</span>
+                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">Peito Esquerdo 🤱</h4>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-rose-500 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Play size={16} fill="white" />
+              </div>
+            </button>
+
+            <button
+              onClick={() => startFeeding('RIGHT_BREAST')}
+              className="p-4 bg-pink-50 hover:bg-pink-100/80 dark:bg-slate-950/70 dark:hover:bg-slate-800 border border-pink-200 dark:border-slate-800 rounded-2xl flex items-center justify-between group transition-all"
+            >
+              <div className="text-left">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-pink-500">Amamentar</span>
+                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">Peito Direito 🤱</h4>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-pink-500 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Play size={16} fill="white" />
+              </div>
+            </button>
+
+            <button
+              onClick={() => startFeeding('BOTTLE')}
+              className="p-4 bg-amber-50 hover:bg-amber-100/80 dark:bg-slate-950/70 dark:hover:bg-slate-800 border border-amber-200 dark:border-slate-800 rounded-2xl flex items-center justify-between group transition-all"
+            >
+              <div className="text-left">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Alimentação</span>
+                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">Mamadeira 🍼</h4>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Play size={16} fill="white" />
+              </div>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* QUICK 1-CLICK DIAPER ACTIONS */}
+      <div className="bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+            💩 Registro Rápido de Fralda (1-Clique)
+          </h3>
+          <button
+            onClick={handleOpenCreate}
+            className="text-xs font-bold text-rose-500 dark:text-indigo-400 hover:underline"
+          >
+            + Detalhes Avançados
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            onClick={() => handleQuickDiaperLog('PEE')}
+            className="py-3 px-4 bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 text-sky-700 dark:text-sky-300 font-bold text-xs rounded-2xl transition-all shadow-xs active:scale-95 flex items-center justify-center gap-1.5"
+          >
+            <span>💦 Xixi</span>
+          </button>
+          <button
+            onClick={() => handleQuickDiaperLog('POOP')}
+            className="py-3 px-4 bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 font-bold text-xs rounded-2xl transition-all shadow-xs active:scale-95 flex items-center justify-center gap-1.5"
+          >
+            <span>💩 Cocô</span>
+          </button>
+          <button
+            onClick={() => handleQuickDiaperLog('BOTH')}
+            className="py-3 px-4 bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 font-bold text-xs rounded-2xl transition-all shadow-xs active:scale-95 flex items-center justify-center gap-1.5"
+          >
+            <span>💩💦 Ambos</span>
+          </button>
         </div>
       </div>
 
@@ -220,7 +484,6 @@ export default function DashboardPage() {
 
       {/* Desktop Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* Timeline & Actions */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xs dark:shadow-xl">
@@ -248,13 +511,13 @@ export default function DashboardPage() {
                         <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${item.colorBadge}`}>
                           {item.title}
                         </span>
-                        
+
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-slate-400 font-mono">
-                            {item.date.toLocaleDateString('pt-BR')} às {item.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {item.date.toLocaleDateString('pt-BR')} às{' '}
+                            {item.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
 
-                          {/* Edit / Delete Buttons for Diaper Logs */}
                           {item.category === 'bowel' && (
                             <div className="flex items-center gap-1 ml-2">
                               <button
@@ -268,6 +531,18 @@ export default function DashboardPage() {
                                 onClick={() => handleDeleteDiaper(item.id)}
                                 className="p-1 text-slate-400 hover:text-red-500 rounded-md transition-colors"
                                 title="Excluir Registro"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          )}
+
+                          {item.category === 'feeding' && (
+                            <div className="flex items-center gap-1 ml-2">
+                              <button
+                                onClick={() => handleDeleteFeeding(item.id)}
+                                className="p-1 text-slate-400 hover:text-red-500 rounded-md transition-colors"
+                                title="Excluir Mamada"
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -312,7 +587,6 @@ export default function DashboardPage() {
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Carteira de vacinação infantil por idade.</p>
           </div>
         </div>
-
       </div>
 
       {/* Modal for Create or Edit Diaper Record */}
