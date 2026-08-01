@@ -69,24 +69,45 @@ export default function RemindersPage() {
 
       const babyRes = await fetch(`/api/bowel-movements?babyId=${activeBabyId}`);
       const babyData = await babyRes.json();
-      const currentBaby = babyData.baby;
+      const currentBaby = babyData?.baby;
       setBaby(currentBaby);
 
-      if (currentBaby?.id) {
-        const res = await fetch(`/api/reminders?babyId=${currentBaby.id}`);
-        const data = await res.json();
-        const rems = Array.isArray(data) ? data : [];
-        setReminders(rems);
+      let fetchedReminders: any[] = [];
 
-        // Inicializar posições em grid para novos pins que não tenham posição salva
-        const newPos: Record<string, { x: number; y: number }> = {};
-        rems.forEach((rem, idx) => {
-          const col = idx % 3;
-          const row = Math.floor(idx / 3);
-          newPos[rem.id] = { x: 40 + col * 260, y: 40 + row * 220 };
-        });
-        setPositions((prev) => ({ ...newPos, ...prev }));
+      // 1. Carregar do Firebase Cloud Firestore (Tempo Real)
+      try {
+        const { db } = await import('@/lib/firebase');
+        const { collection, getDocs, query, orderBy } = await import('firebase/firestore');
+        
+        const q = query(collection(db, 'reminders'), orderBy('createdAt', 'desc'));
+        const snap = await getDocs(q);
+        fetchedReminders = snap.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+      } catch (fsErr) {
+        console.error('Erro ao ler Firestore:', fsErr);
       }
+
+      // 2. Fallback para a API REST se o Firestore estivesse vazio
+      if (fetchedReminders.length === 0) {
+        try {
+          const res = await fetch(`/api/reminders?babyId=${currentBaby?.id || ''}`);
+          const data = await res.json();
+          fetchedReminders = Array.isArray(data) ? data : [];
+        } catch (apiErr) {}
+      }
+
+      setReminders(fetchedReminders);
+
+      // Inicializar posições em grid para novos pins que não tenham posição salva
+      const newPos: Record<string, { x: number; y: number }> = {};
+      fetchedReminders.forEach((rem, idx) => {
+        const col = idx % 3;
+        const row = Math.floor(idx / 3);
+        newPos[rem.id] = { x: 40 + col * 260, y: 40 + row * 220 };
+      });
+      setPositions((prev) => ({ ...newPos, ...prev }));
     } catch (e) {
       console.error(e);
       setReminders([]);
@@ -228,6 +249,35 @@ export default function RemindersPage() {
 
     setSubmitting(true);
     try {
+      // 1. Tenta gravar no Firebase Cloud Firestore (sincronização em tempo real do casal)
+      try {
+        const { db } = await import('@/lib/firebase');
+        const { collection, addDoc, doc, updateDoc } = await import('firebase/firestore');
+
+        if (editingId) {
+          const remRef = doc(db, 'reminders', editingId);
+          await updateDoc(remRef, {
+            title: title.trim(),
+            content: content.trim(),
+            color,
+            remindAt: remindAt || null,
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          await addDoc(collection(db, 'reminders'), {
+            babyId: activeBabyId,
+            title: title.trim(),
+            content: content.trim(),
+            color,
+            remindAt: remindAt || null,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      } catch (firestoreErr) {
+        console.error('Erro Firestore Reminders:', firestoreErr);
+      }
+
+      // 2. Tenta sincronizar com API Prisma local se disponível
       if (editingId) {
         await fetch('/api/reminders', {
           method: 'PUT',
@@ -241,7 +291,7 @@ export default function RemindersPage() {
           }),
         });
       } else {
-        const res = await fetch('/api/reminders', {
+        await fetch('/api/reminders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -252,12 +302,6 @@ export default function RemindersPage() {
             remindAt,
           }),
         });
-
-        if (!res.ok) {
-          const errData = await res.json();
-          alert(errData.error || 'Erro ao criar lembrete');
-          return;
-        }
       }
 
       // Notificação nativa silenciosa / Push no celular se permitido
