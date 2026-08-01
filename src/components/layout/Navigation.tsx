@@ -8,7 +8,7 @@ import HeaderAgendaWidget from './HeaderAgendaWidget';
 import AuthModal from '../auth/AuthModal';
 import ShareBabyModal from '../auth/ShareBabyModal';
 import ProfileSettingsModal from '../auth/ProfileSettingsModal';
-import { useAuth } from '@/lib/authContext';
+import PushNotificationManager from './PushNotificationManager';
 
 export default function Navigation() {
   const pathname = usePathname();
@@ -184,6 +184,9 @@ export default function Navigation() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Botão para ativar Notificações Push no Celular */}
+          <PushNotificationManager />
+
           {/* Botão de Compartilhar Bebê em Casal */}
           {activeBaby && (
             <button
