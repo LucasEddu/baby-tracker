@@ -31,9 +31,14 @@ export default function PushNotificationManager() {
           // Registrar Service Worker
           const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
           
-          const token = await getToken(messaging, {
-            serviceWorkerRegistration: registration,
-          });
+          let token = '';
+          try {
+            token = await getToken(messaging, {
+              serviceWorkerRegistration: registration,
+            });
+          } catch (tokErr) {
+            console.log('getToken sem VAPID key:', tokErr);
+          }
 
           if (token) {
             // Salva o Token FCM do celular/navegador no perfil do usuário no Firestore
