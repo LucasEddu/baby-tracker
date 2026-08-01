@@ -14,7 +14,12 @@ export interface UserProfile {
   email: string;
   fullName: string;
   displayName: string;
+  role?: 'MÃE' | 'PAI' | 'CUIDADOR' | 'PEDIATRA' | 'OUTRO';
+  phone?: string;
   photoURL?: string;
+  avatarColor?: string;
+  notificationsEnabled?: boolean;
+  createdAt?: string;
 }
 
 interface AuthContextType {

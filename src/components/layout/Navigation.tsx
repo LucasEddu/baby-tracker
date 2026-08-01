@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import HeaderAgendaWidget from './HeaderAgendaWidget';
 import AuthModal from '../auth/AuthModal';
 import ShareBabyModal from '../auth/ShareBabyModal';
+import ProfileSettingsModal from '../auth/ProfileSettingsModal';
 import { useAuth } from '@/lib/authContext';
 
 export default function Navigation() {
@@ -16,6 +17,7 @@ export default function Navigation() {
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   // Abrir modal de Login automaticamente no primeiro acesso se não estiver logado
   useEffect(() => {
@@ -207,15 +209,13 @@ export default function Navigation() {
           <button
             onClick={() => {
               if (user) {
-                if (confirm(`Conectado como ${profile?.displayName || user.email}. Deseja sair da conta?`)) {
-                  logout();
-                }
+                setShowProfileModal(true);
               } else {
                 setShowAuthModal(true);
               }
             }}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
-            title={user ? `Logado como ${profile?.displayName}` : 'Entrar ou Cadastrar'}
+            title={user ? `Gerenciar perfil de ${profile?.displayName || user.email}` : 'Entrar ou Cadastrar'}
           >
             <LogIn size={15} className="text-rose-500 dark:text-indigo-400" />
             <span className="hidden md:inline">
@@ -374,9 +374,10 @@ export default function Navigation() {
           </div>
         </div>
       )}
-      {/* Modais de Autenticação e Compartilhamento de Casal */}
+      {/* Modais de Autenticação, Perfil e Compartilhamento de Casal */}
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       <ShareBabyModal isOpen={showShareModal} onClose={() => setShowShareModal(false)} baby={activeBaby} />
+      <ProfileSettingsModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
     </>
   );
 }
