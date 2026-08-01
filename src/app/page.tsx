@@ -1,65 +1,442 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState, useEffect } from 'react';
+import { Droplet, Sparkles, Plus, AlertTriangle, Calendar, Clock, ChevronRight, Edit2, Trash2 } from 'lucide-react';
+import { formatAge, translateColor, translateConsistency } from '@/lib/utils';
+import Link from 'next/link';
+
+export default function DashboardPage() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Create / Edit Diaper Modal state
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [diaperType, setDiaperType] = useState<'POOP' | 'PEE' | 'BOTH'>('POOP');
+  const [color, setColor] = useState('YELLOW');
+  const [consistency, setConsistency] = useState('PASTY');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const activeBabyId = localStorage.getItem('activeBabyId') || '';
+      const res = await fetch(`/api/bowel-movements?babyId=${activeBabyId}`);
+      const json = await res.json();
+      setData(json);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  function handleOpenCreate() {
+    setEditingId(null);
+    setDiaperType('POOP');
+    setColor('YELLOW');
+    setConsistency('PASTY');
+    setNotes('');
+    setShowModal(true);
+  }
+
+  function handleOpenEdit(b: any) {
+    setEditingId(b.id);
+    setDiaperType(b.type);
+    setColor(b.color || 'YELLOW');
+    setConsistency(b.consistency || 'PASTY');
+    setNotes(b.notes || '');
+    setShowModal(true);
+  }
+
+  async function handleSaveDiaper(e: React.FormEvent) {
+    e.preventDefault();
+    if (!data?.baby?.id) return;
+
+    setSubmitting(true);
+    try {
+      if (editingId) {
+        // Edit existing log
+        await fetch('/api/bowel-movements', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingId,
+            type: diaperType,
+            color: diaperType !== 'PEE' ? color : null,
+            consistency: diaperType !== 'PEE' ? consistency : null,
+            notes,
+          }),
+        });
+      } else {
+        // Create new log
+        await fetch('/api/bowel-movements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            babyId: data.baby.id,
+            type: diaperType,
+            color: diaperType !== 'PEE' ? color : null,
+            consistency: diaperType !== 'PEE' ? consistency : null,
+            notes,
+          }),
+        });
+      }
+
+      setShowModal(false);
+      setEditingId(null);
+      setNotes('');
+      await loadData();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDeleteDiaper(id: string) {
+    if (!confirm('Deseja realmente excluir este registro de troca?')) return;
+    try {
+      await fetch(`/api/bowel-movements?id=${id}`, { method: 'DELETE' });
+      await loadData();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-slate-400">
+        <div className="w-10 h-10 border-4 border-rose-400 dark:border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-medium">Carregando painel do bebê...</p>
+      </div>
+    );
+  }
+
+  const baby = data?.baby;
+  const bowelList = data?.bowel || [];
+  const latestGrowth = data?.growth?.[0];
+
+  // Combined timeline
+  const timeline: any[] = [];
+
+  bowelList.forEach((b: any) => {
+    timeline.push({
+      id: b.id,
+      date: new Date(b.loggedAt),
+      category: 'bowel',
+      title: b.type === 'PEE' ? 'Xixi 💦' : b.type === 'POOP' ? 'Cocô 💩' : 'Xixi e Cocô 💩💦',
+      subtitle: b.type !== 'PEE' ? `${translateColor(b.color)} • ${translateConsistency(b.consistency)}` : 'Troca de fralda',
+      notes: b.notes,
+      colorBadge: b.color === 'ALERT_BLOOD' ? 'bg-red-500/20 text-red-500 border-red-300' : 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20',
+      raw: b,
+    });
+  });
+
+  (data?.growth || []).forEach((g: any) => {
+    timeline.push({
+      id: g.id,
+      date: new Date(g.measuredAt),
+      category: 'growth',
+      title: `Medição Antropométrica 📏`,
+      subtitle: `${g.weightGrams}g • ${g.heightCm}cm ${g.headCircCm ? `• PC: ${g.headCircCm}cm` : ''}`,
+      notes: `Origem: ${g.source === 'DOCTOR' ? 'Pediatra 🩺' : 'Em Casa 🏠'}`,
+      colorBadge: 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20',
+      raw: g,
+    });
+  });
+
+  timeline.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+  // Constipation Alert check (if no poop for over 36h)
+  const lastPoop = bowelList.find((b: any) => b.type === 'POOP' || b.type === 'BOTH');
+  const hoursSincePoop = lastPoop
+    ? (Date.now() - new Date(lastPoop.loggedAt).getTime()) / (1000 * 60 * 60)
+    : 0;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="space-y-6">
+      {/* Top Banner with Warm Childish Palette (Light Mode) and Sleek Indigo (Dark Mode) */}
+      <div className="bg-gradient-to-r from-rose-100 via-pink-50 to-amber-50 dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 border border-rose-200/80 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm dark:shadow-2xl relative overflow-hidden transition-colors">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-rose-500 dark:text-indigo-400 bg-white/80 dark:bg-indigo-500/10 px-3.5 py-1 rounded-full border border-rose-200 dark:border-indigo-500/20 shadow-xs">
+              Painel do Bebê
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight mt-2">{baby?.name || 'Seu Bebê'}</h2>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-2 font-medium">
+              <Calendar size={15} className="text-rose-400 dark:text-indigo-400" />
+              Idade: <strong className="text-slate-900 dark:text-white">{baby?.birthDate && formatAge(baby.birthDate)}</strong>
+            </p>
+          </div>
+
+          {/* Quick Metrics Cards */}
+          <div className="flex flex-wrap items-center gap-3">
+            {latestGrowth && (
+              <>
+                <div className="bg-white/90 dark:bg-slate-950/60 border border-rose-100 dark:border-slate-800 p-3.5 rounded-2xl min-w-[110px] text-center shadow-xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Peso Atual</span>
+                  <p className="text-lg font-black text-rose-500 dark:text-indigo-300">{(latestGrowth.weightGrams / 1000).toFixed(2)} kg</p>
+                </div>
+                <div className="bg-white/90 dark:bg-slate-950/60 border border-rose-100 dark:border-slate-800 p-3.5 rounded-2xl min-w-[110px] text-center shadow-xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Estatura</span>
+                  <p className="text-lg font-black text-emerald-600 dark:text-emerald-300">{latestGrowth.heightCm} cm</p>
+                </div>
+                <div className="bg-white/90 dark:bg-slate-950/60 border border-rose-100 dark:border-slate-800 p-3.5 rounded-2xl min-w-[110px] text-center shadow-xs">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Perímetro</span>
+                  <p className="text-lg font-black text-amber-600 dark:text-amber-300">{latestGrowth.headCircCm || '-'} cm</p>
+                </div>
+              </>
+            )}
+
+            <button
+              onClick={handleOpenCreate}
+              className="py-3.5 px-6 bg-gradient-to-r from-rose-400 to-pink-500 dark:from-indigo-600 dark:to-violet-600 hover:from-rose-500 hover:to-pink-600 text-white font-bold text-sm rounded-2xl shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              <Plus size={20} />
+              <span>Novo Registro Rápido</span>
+            </button>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </div>
+
+      {/* Constipation Warning */}
+      {hoursSincePoop > 36 && (
+        <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-4 flex items-center gap-4 text-amber-800 dark:text-amber-300">
+          <AlertTriangle size={24} className="text-amber-500 shrink-0" />
+          <div className="flex-1 text-xs">
+            <h4 className="font-bold uppercase tracking-wider">Alerta de Frequência</h4>
+            <p className="mt-0.5 font-medium">
+              Faz mais de {Math.floor(hoursSincePoop)}h desde o último registro de evacuação de fezes.
+            </p>
+          </div>
         </div>
-      </main>
+      )}
+
+      {/* Desktop Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Timeline & Actions */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xs dark:shadow-xl">
+            <div className="flex items-center justify-between mb-4 border-b border-rose-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Clock size={18} className="text-rose-400 dark:text-indigo-400" />
+                Linha do Tempo Consolidada
+              </h3>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-rose-50 dark:bg-slate-800 px-3 py-1 rounded-full">
+                {timeline.length} eventos registrados
+              </span>
+            </div>
+
+            {timeline.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-sm">
+                Nenhum evento registrado ainda neste perfil.
+              </div>
+            ) : (
+              <div className="space-y-4 relative before:absolute before:left-4 before:top-3 before:bottom-3 before:w-0.5 before:bg-rose-100 dark:before:bg-slate-800">
+                {timeline.map((item) => (
+                  <div key={item.id} className="flex gap-4 items-start relative pl-9">
+                    <div className="absolute left-2.5 top-3.5 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-rose-400 dark:bg-indigo-500 ring-4 ring-white dark:ring-slate-950"></div>
+                    <div className="flex-1 bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 hover:border-rose-200 dark:hover:border-slate-700 rounded-2xl p-4 transition-all">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${item.colorBadge}`}>
+                          {item.title}
+                        </span>
+                        
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-400 font-mono">
+                            {item.date.toLocaleDateString('pt-BR')} às {item.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+
+                          {/* Edit / Delete Buttons for Diaper Logs */}
+                          {item.category === 'bowel' && (
+                            <div className="flex items-center gap-1 ml-2">
+                              <button
+                                onClick={() => handleOpenEdit(item.raw)}
+                                className="p-1 text-slate-400 hover:text-indigo-500 rounded-md transition-colors"
+                                title="Editar Registro"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDiaper(item.id)}
+                                className="p-1 text-slate-400 hover:text-red-500 rounded-md transition-colors"
+                                title="Excluir Registro"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-2">{item.subtitle}</p>
+                      {item.notes && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 italic">"{item.notes}"</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Module Quick Cards */}
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 rounded-3xl p-5 shadow-xs dark:shadow-xl">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                📏 Crescimento
+              </h4>
+              <Link href="/growth" className="text-xs text-rose-500 dark:text-indigo-400 font-bold flex items-center gap-0.5">
+                Ver Gráficos <ChevronRight size={14} />
+              </Link>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 font-medium">Curvas e histórico antropométrico.</p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 rounded-3xl p-5 shadow-xs dark:shadow-xl">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                💉 Vacinas
+              </h4>
+              <Link href="/vaccines" className="text-xs text-rose-500 dark:text-indigo-400 font-bold flex items-center gap-0.5">
+                Carteira <ChevronRight size={14} />
+              </Link>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Carteira de vacinação infantil por idade.</p>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Modal for Create or Edit Diaper Record */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 w-full max-w-md rounded-3xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-rose-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                💩 {editingId ? 'Editar Registro de Troca' : 'Novo Registro de Eliminação'}
+              </h3>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">✕</button>
+            </div>
+
+            <form onSubmit={handleSaveDiaper} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">Tipo de Eliminação</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'POOP', label: 'Cocô 💩' },
+                    { id: 'PEE', label: 'Xixi 💦' },
+                    { id: 'BOTH', label: 'Ambos 💩💦' },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setDiaperType(t.id as any)}
+                      className={`py-2.5 text-xs font-bold rounded-xl border transition-all ${
+                        diaperType === t.id
+                          ? 'bg-rose-100 dark:bg-amber-500/20 text-rose-600 dark:text-amber-300 border-rose-300 dark:border-amber-500/40'
+                          : 'bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {diaperType !== 'PEE' && (
+                <>
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">Cor das Fezes</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'YELLOW', label: 'Amarelo 🟡' },
+                        { id: 'GREEN', label: 'Verde 🟢' },
+                        { id: 'BROWN', label: 'Castanho 🟤' },
+                        { id: 'MECONIUM', label: 'Meconial 🖤' },
+                        { id: 'ALERT_BLOOD', label: 'Alerta/Sangue 🚨' },
+                      ].map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setColor(c.id)}
+                          className={`py-2 px-3 text-xs text-left font-semibold rounded-xl border transition-all ${
+                            color === c.id
+                              ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/40'
+                              : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                          }`}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">Consistência</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'PASTY', label: 'Pastoso' },
+                        { id: 'LIQUID', label: 'Líquido' },
+                        { id: 'HARDENED', label: 'Endurecido' },
+                        { id: 'MECONIUM', label: 'Mecônio' },
+                      ].map((cs) => (
+                        <button
+                          key={cs.id}
+                          type="button"
+                          onClick={() => setConsistency(cs.id)}
+                          className={`py-2 px-3 text-xs text-center font-semibold rounded-xl border transition-all ${
+                            consistency === cs.id
+                              ? 'bg-rose-100 dark:bg-indigo-500/20 text-rose-600 dark:text-indigo-300 border-rose-300 dark:border-indigo-500/40'
+                              : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                          }`}
+                        >
+                          {cs.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Anotações / Observações</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Trocado após mamada..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-rose-400 dark:focus:border-indigo-500 font-medium"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 py-2.5 text-xs font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 rounded-xl"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-rose-400 to-pink-500 dark:bg-indigo-600 rounded-xl shadow-md"
+                >
+                  {submitting ? 'Salvando...' : 'Salvar Registro'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

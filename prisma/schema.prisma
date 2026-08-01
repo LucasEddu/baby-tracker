@@ -1,0 +1,142 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id           String          @id @default(uuid())
+  name         String
+  email        String          @unique
+  passwordHash String          @map("password_hash")
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  caretakers   BabyCaretaker[]
+  bowelLogs    BowelMovement[]
+  growthLogs   GrowthRecord[]
+
+  @@map("users")
+}
+
+model Baby {
+  id           String               @id @default(uuid())
+  name         String
+  birthDate    DateTime             @map("birth_date")
+  gender       String               // 'male' | 'female' | 'other'
+  createdAt    DateTime             @default(now()) @map("created_at")
+
+  caretakers   BabyCaretaker[]
+  bowelLogs    BowelMovement[]
+  growthLogs   GrowthRecord[]
+  vaccines     VaccineApplication[]
+  appointments MedicalAppointment[]
+  reminders    Reminder[]
+
+  @@map("babies")
+}
+
+model BabyCaretaker {
+  id     String @id @default(uuid())
+  babyId String @map("baby_id")
+  userId String @map("user_id")
+  role   String @default("EDITOR")
+
+  baby Baby @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([babyId, userId])
+  @@map("baby_caretakers")
+}
+
+model BowelMovement {
+  id          String   @id @default(uuid())
+  babyId      String   @map("baby_id")
+  userId      String   @map("user_id")
+  loggedAt    DateTime @default(now()) @map("logged_at")
+  type        String   @default("POOP")
+  color       String?
+  consistency String?
+  notes       String?
+
+  baby Baby @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("bowel_movements")
+}
+
+model GrowthRecord {
+  id          String   @id @default(uuid())
+  babyId      String   @map("baby_id")
+  userId      String   @map("user_id")
+  measuredAt  DateTime @default(now()) @map("measured_at")
+  weightGrams Int      @map("weight_grams")
+  heightCm    Float    @map("height_cm")
+  headCircCm  Float?   @map("head_circ_cm")
+  source      String   @default("HOME")
+
+  baby Baby @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("growth_records")
+}
+
+model Vaccine {
+  id              String               @id @default(uuid())
+  name            String
+  description     String?
+  targetAgeMonths Int                  @map("target_age_months")
+
+  applications    VaccineApplication[]
+
+  @@map("vaccines")
+}
+
+model VaccineApplication {
+  id          String   @id @default(uuid())
+  babyId      String   @map("baby_id")
+  vaccineId   String   @map("vaccine_id")
+  appliedAt   DateTime @default(now()) @map("applied_at")
+  lotNumber   String?  @map("lot_number")
+  location    String?
+  sideEffects String?  @map("side_effects")
+
+  baby    Baby    @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  vaccine Vaccine @relation(fields: [vaccineId], references: [id], onDelete: Cascade)
+
+  @@map("vaccine_applications")
+}
+
+model MedicalAppointment {
+  id              String   @id @default(uuid())
+  babyId          String   @map("baby_id")
+  doctorName      String   @map("doctor_name")
+  specialty       String?
+  type            String   @default("ROUTINE")
+  description     String?
+  appointmentDate DateTime @map("appointment_date")
+  preNotes        String?  @map("pre_notes")
+  postNotes       String?  @map("post_notes")
+  status          String   @default("SCHEDULED")
+
+  baby Baby @relation(fields: [babyId], references: [id], onDelete: Cascade)
+
+  @@map("medical_appointments")
+}
+
+model Reminder {
+  id        String   @id @default(uuid())
+  babyId    String   @map("baby_id")
+  title     String
+  content   String?
+  color     String   @default("yellow") // 'yellow' | 'rose' | 'emerald' | 'indigo' | 'purple' | 'sky'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  baby Baby @relation(fields: [babyId], references: [id], onDelete: Cascade)
+
+  @@map("reminders")
+}
