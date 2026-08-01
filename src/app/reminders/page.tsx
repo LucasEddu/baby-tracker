@@ -216,18 +216,6 @@ export default function RemindersPage() {
     setShowModal(true);
   }
 
-  // Função para abrir disparo direto de notificação via WhatsApp (api.whatsapp.com / wa.me)
-  function sendWhatsappNotification(userPhone: string, titleText: string, contentText: string, timeText: string) {
-    const cleanPhone = userPhone.replace(/\D/g, '');
-    const message = `👶 *Baby Tracker - Lembrete de Cuidados*\n\n📌 *Lembrete:* ${titleText}\n${contentText ? `📝 *Detalhes:* ${contentText}\n` : ''}${timeText ? `⏰ *Horário Programado:* ${timeText}\n` : ''}\n_Enviado automaticamente pelo Baby Tracker_`;
-    
-    const whatsappUrl = cleanPhone 
-      ? `https://api.whatsapp.com/send?phone=55${cleanPhone}&text=${encodeURIComponent(message)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
-    
-    window.open(whatsappUrl, '_blank');
-  }
-
   async function handleSaveReminder(e: React.FormEvent) {
     e.preventDefault();
 
@@ -250,7 +238,6 @@ export default function RemindersPage() {
             content: content.trim(),
             color,
             remindAt,
-            sendWhatsapp,
           }),
         });
       } else {
@@ -263,7 +250,6 @@ export default function RemindersPage() {
             content: content.trim(),
             color,
             remindAt,
-            sendWhatsapp,
           }),
         });
 
@@ -274,11 +260,14 @@ export default function RemindersPage() {
         }
       }
 
-      // Se a opção de notificação por WhatsApp estiver marcada, dispara o envio do lembrete
-      if (sendWhatsapp) {
-        const phone = localStorage.getItem('userPhone') || '';
-        const timeFormatted = remindAt ? new Date(remindAt).toLocaleString('pt-BR') : '';
-        sendWhatsappNotification(phone, title.trim(), content.trim(), timeFormatted);
+      // Notificação nativa silenciosa / Push no celular se permitido
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification(`📌 Novo Lembrete: ${title.trim()}`, {
+            body: content.trim() || 'Lembrete adicionado ao mural do bebê.',
+            icon: '/icon.png',
+          });
+        } catch (err) {}
       }
 
       setShowModal(false);
@@ -578,26 +567,6 @@ export default function RemindersPage() {
                   onChange={(e) => setRemindAt(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-rose-400 dark:focus:border-indigo-500 font-medium"
                 />
-              </div>
-
-              {/* Checkbox Notificação via WhatsApp */}
-              <div
-                onClick={() => setSendWhatsapp(!sendWhatsapp)}
-                className="flex items-center justify-between p-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/50 dark:bg-emerald-500/10 cursor-pointer transition active:scale-98"
-              >
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
-                    <MessageCircle size={18} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100">Notificação via WhatsApp 📲</h4>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Enviar cópia da notificação para o seu celular</p>
-                  </div>
-                </div>
-
-                <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition ${sendWhatsapp ? 'bg-emerald-500 border-emerald-600 text-white' : 'border-slate-300 dark:border-slate-700'}`}>
-                  {sendWhatsapp && <Check size={14} className="font-black" />}
-                </div>
               </div>
 
               <div className="pt-2 flex gap-2">
