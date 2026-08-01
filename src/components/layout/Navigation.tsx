@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, TrendingUp, Syringe, Stethoscope, StickyNote, Sun, Moon, Baby as BabyIcon, Plus, Trash2, ChevronDown, LogIn, Users } from 'lucide-react';
+import { Home, TrendingUp, Syringe, Stethoscope, StickyNote, Sun, Moon, Baby as BabyIcon, Plus, Trash2, ChevronDown, LogIn, Users, Settings } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import HeaderAgendaWidget from './HeaderAgendaWidget';
 import AuthModal from '../auth/AuthModal';
 import ShareBabyModal from '../auth/ShareBabyModal';
 import ProfileSettingsModal from '../auth/ProfileSettingsModal';
+import SettingsDrawer from './SettingsDrawer';
 import PushNotificationManager from './PushNotificationManager';
 import { useAuth } from '@/lib/authContext';
 
@@ -19,6 +20,7 @@ export default function Navigation() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
 
   // Abrir modal de Login automaticamente no primeiro acesso se não estiver logado
   useEffect(() => {
@@ -188,22 +190,11 @@ export default function Navigation() {
           <HeaderAgendaWidget />
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Botão para ativar Notificações Push no Celular */}
+        <div className="flex items-center gap-2.5">
+          {/* Botão de Notificações Push Silencioso */}
           <PushNotificationManager />
 
-          {/* Botão de Compartilhar Bebê em Casal */}
-          {activeBaby && (
-            <button
-              onClick={() => setShowShareModal(true)}
-              className="hidden sm:flex items-center gap-1.5 bg-rose-50 dark:bg-slate-800/60 hover:bg-rose-100 dark:hover:bg-slate-800 px-3 py-2 rounded-xl border border-rose-200 dark:border-slate-700 text-xs font-bold text-rose-600 dark:text-indigo-300 transition"
-              title="Compartilhar este bebê com parceiro(a)"
-            >
-              <Users size={16} />
-              <span>Casal</span>
-            </button>
-          )}
-
+          {/* Botão para Troca de Bebê Ativo */}
           <button
             onClick={() => setShowBabyModal(true)}
             className="flex items-center gap-2 bg-rose-50 dark:bg-slate-800/60 hover:bg-rose-100/70 dark:hover:bg-slate-800 px-3.5 py-2 rounded-xl border border-rose-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-100 transition-all shadow-xs"
@@ -213,33 +204,14 @@ export default function Navigation() {
             <ChevronDown size={14} className="text-slate-400" />
           </button>
 
-          {/* Botão de Login / Perfil do Usuário */}
+          {/* Botão Principal do Menu Lateral de Configurações ⚙️ */}
           <button
-            onClick={() => {
-              if (user) {
-                setShowProfileModal(true);
-              } else {
-                setShowAuthModal(true);
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
-            title={user ? `Gerenciar perfil de ${profile?.displayName || user.email}` : 'Entrar ou Cadastrar'}
+            onClick={() => setShowSettingsDrawer(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-rose-400 via-pink-500 to-rose-500 dark:from-indigo-600 dark:to-violet-600 text-white font-bold text-xs shadow-md hover:opacity-95 transition-all active:scale-95"
+            title="Abrir Menu de Configurações (Perfil, Casa, Temas e Notificações)"
           >
-            <LogIn size={15} className="text-rose-500 dark:text-indigo-400" />
-            <span className="hidden md:inline">
-              {user ? (profile?.displayName ? `Olá, ${profile.displayName}` : 'Minha Conta') : 'Entrar / Cadastrar'}
-            </span>
-          </button>
-
-          <button
-            onClick={toggleTheme}
-            className="p-2.5 rounded-xl bg-amber-100/80 dark:bg-slate-800 hover:bg-amber-200 dark:hover:bg-slate-700 text-amber-600 dark:text-amber-400 transition-all border border-amber-200 dark:border-slate-700 active:scale-95 flex items-center gap-2 text-xs font-bold shadow-xs"
-            title="Alternar Modo Claro / Escuro"
-          >
-            {isDarkMode ? <Sun size={18} /> : <Moon size={18} className="text-amber-600" />}
-            <span className="hidden sm:inline text-slate-700 dark:text-slate-300">
-              {isDarkMode ? 'Claro ☀️' : 'Escuro 🌙'}
-            </span>
+            <Settings size={16} className="animate-spin-slow" />
+            <span className="hidden sm:inline">Configurações</span>
           </button>
         </div>
       </header>
@@ -254,17 +226,25 @@ export default function Navigation() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center w-14 h-12 rounded-xl transition-all ${
+                className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
                   isActive
                     ? 'text-rose-500 dark:text-indigo-400 bg-rose-50 dark:bg-indigo-500/10 font-bold'
                     : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
                 }`}
               >
                 <Icon size={18} className={isActive ? 'scale-110 transition-transform' : ''} />
-                <span className="text-[9px] mt-1 truncate max-w-[56px] text-center">{item.label.split(' ')[0]}</span>
+                <span className="text-[9px] mt-1 truncate max-w-[50px] text-center">{item.label.split(' ')[0]}</span>
               </Link>
             );
           })}
+
+          <button
+            onClick={() => setShowSettingsDrawer(true)}
+            className="flex flex-col items-center justify-center w-12 h-12 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-all"
+          >
+            <Settings size={18} className="animate-spin-slow text-rose-500 dark:text-indigo-400" />
+            <span className="text-[9px] mt-1 text-center font-bold">Config</span>
+          </button>
         </div>
       </nav>
 
@@ -382,6 +362,21 @@ export default function Navigation() {
           </div>
         </div>
       )}
+      {/* Menu Lateral Unificado de Configurações ⚙️ */}
+      <SettingsDrawer
+        isOpen={showSettingsDrawer}
+        onClose={() => setShowSettingsDrawer(false)}
+        isDarkMode={isDarkMode}
+        toggleTheme={toggleTheme}
+        babies={safeBabies}
+        activeBaby={activeBaby}
+        onSelectBaby={handleSelectBaby}
+        onOpenBabyModal={() => setShowBabyModal(true)}
+        onOpenShareModal={() => setShowShareModal(true)}
+        onOpenProfileModal={() => setShowProfileModal(true)}
+        onOpenAuthModal={() => setShowAuthModal(true)}
+      />
+
       {/* Modais de Autenticação, Perfil e Compartilhamento de Casal */}
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       <ShareBabyModal isOpen={showShareModal} onClose={() => setShowShareModal(false)} baby={activeBaby} />
