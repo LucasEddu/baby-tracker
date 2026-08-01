@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Stethoscope, Plus, Calendar, CheckSquare, Square, Trash2, Edit2, AlertCircle, FileText } from 'lucide-react';
+import ConfirmModal from '@/components/layout/ConfirmModal';
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -10,6 +11,19 @@ export default function AppointmentsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingApptId, setEditingApptId] = useState<string | null>(null);
   const [selectedAppt, setSelectedAppt] = useState<any>(null);
+
+  // Custom Confirm Modal State
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Appointment form
   const [doctorName, setDoctorName] = useState('');
@@ -34,9 +48,10 @@ export default function AppointmentsPage() {
 
       const res = await fetch(`/api/appointments?babyId=${babyData?.baby?.id || ''}`);
       const data = await res.json();
-      setAppointments(data);
+      setAppointments(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
+      setAppointments([]);
     } finally {
       setLoading(false);
     }
@@ -124,13 +139,20 @@ export default function AppointmentsPage() {
   }
 
   async function handleDeleteAppointment(id: string) {
-    if (!confirm('Deseja realmente excluir esta consulta médica?')) return;
-    try {
-      await fetch(`/api/appointments?id=${id}`, { method: 'DELETE' });
-      await loadAppointments();
-    } catch (e) {
-      console.error(e);
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Excluir Consulta Médica',
+      message: 'Tem certeza que deseja cancelar/remover esta consulta médica do histórico?',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await fetch(`/api/appointments?id=${id}`, { method: 'DELETE' });
+          await loadAppointments();
+        } catch (e) {
+          console.error(e);
+        }
+      },
+    });
   }
 
   async function handleSaveNotes() {
@@ -482,6 +504,14 @@ export default function AppointmentsPage() {
           </div>
         </div>
       )}
+      {/* Custom Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

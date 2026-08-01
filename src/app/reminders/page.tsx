@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { StickyNote, Plus, Pin, Trash2, Edit2, Check, ZoomIn, ZoomOut, RotateCcw, Move, Palette, LayoutGrid } from 'lucide-react';
+import ConfirmModal from '@/components/layout/ConfirmModal';
 
 export default function RemindersPage() {
   const [reminders, setReminders] = useState<any[]>([]);
@@ -264,15 +265,35 @@ export default function RemindersPage() {
     }
   }
 
+  // Custom Confirm Modal State
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation();
-    if (!confirm('Deseja remover este lembrete do mural?')) return;
-    try {
-      await fetch(`/api/reminders?id=${id}`, { method: 'DELETE' });
-      await loadReminders();
-    } catch (e) {
-      console.error(e);
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Remover Lembrete do Mural',
+      message: 'Tem certeza que deseja remover este post-it do seu mural?',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await fetch(`/api/reminders?id=${id}`, { method: 'DELETE' });
+          await loadReminders();
+        } catch (err) {
+          console.error(err);
+        }
+      },
+    });
   }
 
   if (loading) {
@@ -535,6 +556,14 @@ export default function RemindersPage() {
           </div>
         </div>
       )}
+      {/* Custom Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }
