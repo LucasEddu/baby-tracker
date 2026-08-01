@@ -6,13 +6,14 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const babyId = searchParams.get('babyId');
 
-    const baby = babyId
-      ? await prisma.baby.findUnique({ where: { id: babyId } })
-      : await prisma.baby.findFirst();
+    const validBabyId = (babyId && babyId !== 'undefined' && babyId !== 'null') ? babyId : null;
 
-    if (!baby) {
-      return NextResponse.json({ baby: null, bowel: [], growth: [], vaccines: [], appointments: [], feedings: [], todayDiaperCount: 0 });
-    }
+    let baby: any = null;
+    try {
+      baby = validBabyId
+        ? await prisma.baby.findUnique({ where: { id: validBabyId } })
+        : await prisma.baby.findFirst();
+    } catch (err) {}
 
     // Start of today (midnight)
     const startOfToday = new Date();

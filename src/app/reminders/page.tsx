@@ -350,6 +350,16 @@ export default function RemindersPage() {
       onConfirm: async () => {
         setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
         try {
+          // 1. Deleta do Cloud Firestore
+          try {
+            const { db } = await import('@/lib/firebase');
+            const { doc, deleteDoc } = await import('firebase/firestore');
+            await deleteDoc(doc(db, 'reminders', id));
+          } catch (fsErr) {
+            console.error('Erro ao deletar no Firestore:', fsErr);
+          }
+
+          // 2. Tenta deletar no Prisma se existir
           await fetch(`/api/reminders?id=${id}`, { method: 'DELETE' });
           await loadReminders();
         } catch (err) {
