@@ -9,6 +9,7 @@ import AuthModal from '../auth/AuthModal';
 import ShareBabyModal from '../auth/ShareBabyModal';
 import ProfileSettingsModal from '../auth/ProfileSettingsModal';
 import PushNotificationManager from './PushNotificationManager';
+import { useAuth } from '@/lib/authContext';
 
 export default function Navigation() {
   const pathname = usePathname();
