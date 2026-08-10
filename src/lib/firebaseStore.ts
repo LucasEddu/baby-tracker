@@ -259,9 +259,9 @@ export async function getVaccinesFS(babyId?: string) {
   try {
     let q;
     if (babyId) {
-      q = query(collection(db, 'vaccines'), where('babyId', '==', babyId));
+      q = query(collection(db, 'vaccine_applications'), where('babyId', '==', babyId));
     } else {
-      q = query(collection(db, 'vaccines'));
+      q = query(collection(db, 'vaccine_applications'));
     }
     const snap = await getDocs(q);
     const list: any[] = [];
@@ -283,7 +283,7 @@ export async function createVaccineFS(data: any) {
       appliedAt: data.appliedAt || new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
-    const docRef = await addDoc(collection(db, 'vaccines'), record);
+    const docRef = await addDoc(collection(db, 'vaccine_applications'), record);
     return { id: docRef.id, ...record };
   } catch (e) {
     console.error('Firestore createVaccineFS error:', e);
@@ -293,7 +293,7 @@ export async function createVaccineFS(data: any) {
 
 export async function deleteVaccineFS(id: string) {
   try {
-    await deleteDoc(doc(db, 'vaccines', id));
+    await deleteDoc(doc(db, 'vaccine_applications', id));
     return true;
   } catch (e) {
     console.error('Firestore deleteVaccineFS error:', e);
@@ -306,9 +306,9 @@ export async function getAppointmentsFS(babyId?: string) {
   try {
     let q;
     if (babyId) {
-      q = query(collection(db, 'appointments'), where('babyId', '==', babyId));
+      q = query(collection(db, 'medical_appointments'), where('babyId', '==', babyId));
     } else {
-      q = query(collection(db, 'appointments'));
+      q = query(collection(db, 'medical_appointments'));
     }
     const snap = await getDocs(q);
     const list: any[] = [];
@@ -329,7 +329,7 @@ export async function createAppointmentFS(data: any) {
       ...data,
       createdAt: new Date().toISOString(),
     };
-    const docRef = await addDoc(collection(db, 'appointments'), record);
+    const docRef = await addDoc(collection(db, 'medical_appointments'), record);
     return { id: docRef.id, ...record };
   } catch (e) {
     console.error('Firestore createAppointmentFS error:', e);
@@ -339,7 +339,7 @@ export async function createAppointmentFS(data: any) {
 
 export async function deleteAppointmentFS(id: string) {
   try {
-    await deleteDoc(doc(db, 'appointments', id));
+    await deleteDoc(doc(db, 'medical_appointments', id));
     return true;
   } catch (e) {
     console.error('Firestore deleteAppointmentFS error:', e);
