@@ -84,6 +84,7 @@ export default function Navigation() {
   }, []);
 
   function handleSelectBaby(id: string) {
+    if (!id || id === 'undefined' || id === 'null') return;
     setSelectedBabyId(id);
     localStorage.setItem('activeBabyId', id);
     window.location.reload();
@@ -91,7 +92,10 @@ export default function Navigation() {
 
   async function handleCreateBaby(e: React.FormEvent) {
     e.preventDefault();
-    if (!newBabyName || !newBabyDate) return;
+    if (!newBabyName || !newBabyDate) {
+      alert('Por favor, preencha o nome e a data de nascimento.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -105,14 +109,20 @@ export default function Navigation() {
         }),
       });
       const newBaby = await res.json();
+      if (!res.ok || !newBaby || !newBaby.id) {
+        throw new Error(newBaby?.error || 'Erro ao cadastrar bebê');
+      }
 
       setShowBabyModal(false);
       setNewBabyName('');
       setNewBabyDate('');
       await loadBabies();
-      handleSelectBaby(newBaby.id);
-    } catch (e) {
-      console.error(e);
+      if (newBaby.id) {
+        handleSelectBaby(newBaby.id);
+      }
+    } catch (e: any) {
+      console.error('Erro ao cadastrar bebê:', e);
+      alert(e.message || 'Ocorreu um erro ao cadastrar o bebê.');
     } finally {
       setSubmitting(false);
     }

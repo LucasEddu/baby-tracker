@@ -7,8 +7,10 @@ export default function HeaderAgendaWidget() {
   const [time, setTime] = useState<Date | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     setTime(new Date());
     const interval = setInterval(() => {
       setTime(new Date());
@@ -55,7 +57,7 @@ export default function HeaderAgendaWidget() {
       <div className="flex items-center space-x-2 border-r border-rose-100 dark:border-slate-800 pr-3">
         <Clock className="w-4 h-4 text-rose-500 dark:text-indigo-400 animate-pulse" />
         <span className="text-sm font-mono font-extrabold text-slate-800 dark:text-slate-100 tracking-wider">
-          {time ? formatTime(time) : '00:00:00'}
+          {mounted && time ? formatTime(time) : '00:00:00'}
         </span>
       </div>
 
@@ -75,7 +77,7 @@ export default function HeaderAgendaWidget() {
           title="Ver Detalhes da Agenda"
         >
           <CalendarIcon className="w-4 h-4 text-amber-500" />
-          <span>{formatDateFull(selectedDate)}</span>
+          <span>{mounted ? formatDateFull(selectedDate) : 'Carregando data...'}</span>
         </button>
 
         <button
