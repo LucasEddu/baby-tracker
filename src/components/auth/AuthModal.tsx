@@ -299,17 +299,3 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     </div>
   );
 }
-
-        {/* Toggle Login/Signup */}
-        <div className="text-center pt-2 border-t border-slate-100 dark:border-slate-800">
-          <button
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-xs text-rose-500 dark:text-indigo-400 font-bold hover:underline"
-          >
-            {isLogin ? 'Não tem conta? Cadastre-se aqui' : 'Já possui conta? Faça login'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
