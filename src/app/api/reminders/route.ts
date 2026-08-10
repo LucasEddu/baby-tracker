@@ -1,27 +1,33 @@
 import { prisma } from '@/lib/prisma';
+import { getRemindersFS, createReminderFS, deleteReminderFS, getBabiesFS } from '@/lib/firebaseStore';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const babyId = searchParams.get('babyId');
+    let targetBabyId = (babyId && babyId !== 'undefined' && babyId !== 'null' && babyId !== '') ? babyId : '';
 
-    let baby: any = null;
-    try {
-      baby = babyId
-        ? await prisma.baby.findUnique({ where: { id: babyId } })
-        : await prisma.baby.findFirst();
-    } catch (err) {}
-
-    try {
-      const reminders = await prisma.reminder.findMany({
-        where: baby ? { babyId: baby.id } : undefined,
-        orderBy: { createdAt: 'desc' },
-      });
-      return NextResponse.json(reminders);
-    } catch (dbErr) {
-      return NextResponse.json([]);
+    if (!targetBabyId) {
+      const babies = await getBabiesFS();
+      targetBabyId = babies[0]?.id || '';
     }
+
+    let reminders = await getRemindersFS(targetBabyId || undefined);
+
+    if (!reminders || reminders.length === 0) {
+      try {
+        const baby = targetBabyId
+          ? await prisma.baby.findUnique({ where: { id: targetBabyId } })
+          : await prisma.baby.findFirst();
+        reminders = await prisma.reminder.findMany({
+          where: baby ? { babyId: baby.id } : undefined,
+          orderBy: { createdAt: 'desc' },
+        });
+      } catch (dbErr) {}
+    }
+
+    return NextResponse.json(reminders || []);
   } catch (error: any) {
     return NextResponse.json([]);
   }
@@ -34,55 +40,37 @@ export async function POST(request: Request) {
 
     let targetBabyId = babyId;
     if (!targetBabyId) {
-      try {
-        const firstBaby = await prisma.baby.findFirst();
-        if (firstBaby) targetBabyId = firstBaby.id;
-      } catch (err) {
-        targetBabyId = 'demo-baby-id';
-      }
+      const babies = await getBabiesFS();
+      targetBabyId = babies[0]?.id || 'demo-baby-id';
     }
 
+    const fsRecord = await createReminderFS({
+      babyId: targetBabyId,
+      title,
+      content,
+      color: color || 'yellow',
+    });
+
     try {
-      const reminder = await prisma.reminder.create({
+      await prisma.reminder.create({
         data: {
+          id: fsRecord?.id,
           babyId: targetBabyId,
           title,
           content,
           color: color || 'yellow',
         },
       });
-      return NextResponse.json(reminder);
-    } catch (dbErr) {
-      // Se a Vercel bloquear a escrita em disco do SQLite serverless, retorna objeto Válido com ID temporário
-      return NextResponse.json({
-        id: `rem-${Date.now()}`,
-        babyId: targetBabyId,
-        title,
-        content,
-        color: color || 'yellow',
-        createdAt: new Date().toISOString(),
-      });
-    }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
+    } catch (dbErr) {}
 
-export async function PUT(request: Request) {
-  try {
-    const body = await request.json();
-    const { id, title, content, color } = body;
-
-    const reminder = await prisma.reminder.update({
-      where: { id },
-      data: {
-        ...(title && { title }),
-        ...(content !== undefined && { content }),
-        ...(color && { color }),
-      },
+    return NextResponse.json(fsRecord || {
+      id: `rem-${Date.now()}`,
+      babyId: targetBabyId,
+      title,
+      content,
+      color: color || 'yellow',
+      createdAt: new Date().toISOString(),
     });
-
-    return NextResponse.json(reminder);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -94,9 +82,8 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'ID necessário' }, { status: 400 });
 
-    try {
-      await prisma.reminder.delete({ where: { id } });
-    } catch (dbErr) {}
+    await deleteReminderFS(id);
+    try { await prisma.reminder.delete({ where: { id } }); } catch (dbErr) {}
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

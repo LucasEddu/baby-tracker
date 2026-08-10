@@ -1,17 +1,18 @@
 import { prisma } from '@/lib/prisma';
+import { getBabiesFS, createBabyFS, deleteBabyFS } from '@/lib/firebaseStore';
 import { NextResponse } from 'next/server';
 
-// GET all babies or create one
 export async function GET() {
   try {
-    let babies: any[] = [];
-    try {
-      babies = await prisma.baby.findMany({
-        orderBy: { createdAt: 'desc' },
-      });
-    } catch (dbErr) {}
+    let babies = await getBabiesFS();
 
-    if (babies.length === 0) {
+    if (!babies || babies.length === 0) {
+      try {
+        babies = await prisma.baby.findMany({ orderBy: { createdAt: 'desc' } });
+      } catch (dbErr) {}
+    }
+
+    if (!babies || babies.length === 0) {
       babies = [
         {
           id: 'demo-baby-id',
@@ -47,34 +48,38 @@ export async function POST(request: Request) {
     const parsedDate = new Date(birthDate);
     const validDate = isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
 
-    let baby: any;
+    // Salvar no Firebase Firestore para sincronização global
+    const fsBaby = await createBabyFS({
+      name,
+      birthDate: validDate.toISOString(),
+      gender: gender || 'male',
+    });
+
+    // Salvar também no Prisma como backup local se possível
     try {
       const user = await prisma.user.findFirst().catch(() => null);
-
-      baby = await prisma.baby.create({
+      await prisma.baby.create({
         data: {
+          id: fsBaby?.id,
           name,
           birthDate: validDate,
           gender: gender || 'male',
           ...(user && {
-            caretakers: {
-              create: { userId: user.id, role: 'ADMIN' },
-            },
+            caretakers: { create: { userId: user.id, role: 'ADMIN' } },
           }),
         },
       });
-    } catch (dbErr: any) {
-      console.warn('Falha no banco ao criar bebê, usando fallback:', dbErr);
-      baby = {
-        id: `baby-${Date.now()}`,
-        name,
-        birthDate: validDate.toISOString(),
-        gender: gender || 'male',
-        createdAt: new Date().toISOString(),
-      };
-    }
+    } catch (e) {}
 
-    return NextResponse.json(baby);
+    const result = fsBaby || {
+      id: `baby-${Date.now()}`,
+      name,
+      birthDate: validDate.toISOString(),
+      gender: gender || 'male',
+      createdAt: new Date().toISOString(),
+    };
+
+    return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Erro ao cadastrar bebê' }, { status: 500 });
   }
@@ -86,7 +91,9 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'ID necessário' }, { status: 400 });
 
-    await prisma.baby.delete({ where: { id } });
+    await deleteBabyFS(id);
+    try { await prisma.baby.delete({ where: { id } }); } catch (e) {}
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
