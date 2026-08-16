@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, TrendingUp, Syringe, Stethoscope, StickyNote, Sun, Moon, Baby as BabyIcon, Plus, Trash2, ChevronDown, LogIn, Users, Settings } from 'lucide-react';
+import { Home, TrendingUp, Syringe, Stethoscope, StickyNote, Sun, Moon, Baby as BabyIcon, Plus, Trash2, ChevronDown, LogIn, Users, Settings, BookOpen, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import HeaderAgendaWidget from './HeaderAgendaWidget';
 import AuthModal from '../auth/AuthModal';
@@ -10,6 +10,7 @@ import ShareBabyModal from '../auth/ShareBabyModal';
 import ProfileSettingsModal from '../auth/ProfileSettingsModal';
 import SettingsDrawer from './SettingsDrawer';
 import PushNotificationManager from './PushNotificationManager';
+import PatchNotesModal from './PatchNotesModal';
 import { useAuth } from '@/lib/authContext';
 
 export default function Navigation() {
@@ -21,6 +22,8 @@ export default function Navigation() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
+  const [showPatchNotesModal, setShowPatchNotesModal] = useState(false);
+
 
   // Abrir modal de Login automaticamente no primeiro acesso se não estiver logado
   useEffect(() => {
@@ -151,10 +154,13 @@ export default function Navigation() {
   const navItems = [
     { href: '/', label: 'Hoje / Dashboard', icon: Home },
     { href: '/growth', label: 'Crescimento', icon: TrendingUp },
+    { href: '/leaps', label: 'Saltos', icon: Sparkles },
     { href: '/vaccines', label: 'Vacinas', icon: Syringe },
-    { href: '/appointments', label: 'Consultas', icon: Stethoscope },
-    { href: '/reminders', label: 'Mural de Lembretes', icon: StickyNote },
+    { href: '/appointments', label: 'Acompanhamento Médico', icon: Stethoscope },
+    { href: '/knowledge', label: 'Acervo Pediátrico', icon: BookOpen },
+    { href: '/reminders', label: 'Mural', icon: StickyNote },
   ];
+
 
   return (
     <>
@@ -201,6 +207,16 @@ export default function Navigation() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* Botão de Novidades / Patch Notes */}
+          <button
+            onClick={() => setShowPatchNotesModal(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30 text-xs font-bold transition shadow-2xs"
+            title="Ver Histórico de Atualizações (Patch Notes)"
+          >
+            <Sparkles size={14} className="text-amber-500" />
+            <span className="hidden sm:inline">v2.4.0 Novidades</span>
+          </button>
+
           {/* Botão de Notificações Push Silencioso */}
           <PushNotificationManager />
 
@@ -387,10 +403,12 @@ export default function Navigation() {
         onOpenAuthModal={() => setShowAuthModal(true)}
       />
 
-      {/* Modais de Autenticação, Perfil e Compartilhamento de Casal */}
+      {/* Modais de Autenticação, Perfil, Compartilhamento e Patch Notes */}
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       <ShareBabyModal isOpen={showShareModal} onClose={() => setShowShareModal(false)} baby={activeBaby} />
       <ProfileSettingsModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
+      <PatchNotesModal isOpen={showPatchNotesModal} onClose={() => setShowPatchNotesModal(false)} />
     </>
   );
 }
+

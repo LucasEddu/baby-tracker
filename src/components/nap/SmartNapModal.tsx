@@ -28,6 +28,11 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const startTimeRef = useRef<Date | null>(null);
 
+  // Nap Pause states
+  const [isNapPaused, setIsNapPaused] = useState(false);
+  const [pauseReason, setPauseReason] = useState<string | null>(null);
+  const [pausedSeconds, setPausedSeconds] = useState(0);
+
   // Mic/Monitor states
   const [isMicActive, setIsMicActive] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
@@ -82,6 +87,9 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
 
     startTimeRef.current = new Date();
     setSecondsElapsed(0);
+    setPausedSeconds(0);
+    setIsNapPaused(false);
+    setPauseReason(null);
     setEndAlert(null);
     setMicError(null);
 
@@ -91,7 +99,14 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
 
     // 2. Iniciar Cronômetro
     const timerInterval = setInterval(() => {
-      setSecondsElapsed((prev) => prev + 1);
+      setIsNapPaused((paused) => {
+        if (!paused) {
+          setSecondsElapsed((prev) => prev + 1);
+        } else {
+          setPausedSeconds((prev) => prev + 1);
+        }
+        return paused;
+      });
     }, 1000);
 
     // 3. Iniciar Monitor de Choro
@@ -116,6 +131,31 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
       cryDetector.stop();
     };
   }, [isOpen]);
+
+  const handleTogglePause = (reason?: string) => {
+    if (!isNapPaused) {
+      setIsNapPaused(true);
+      if (reason) setPauseReason(reason);
+      whiteNoisePlayer.stop(0.5);
+      cryDetector.stop();
+      setIsMicActive(false);
+    } else {
+      setIsNapPaused(false);
+      setPauseReason(null);
+      if (isPlayingNoise) {
+        whiteNoisePlayer.play(selectedSound, volume, 0.5);
+      }
+      cryDetector.start(micSensitivity, {
+        onCryDetected: handleCryDetected,
+        onVolumeChange: (db, rms) => {
+          setDbLevel(db);
+          setRmsLevel(rms);
+        },
+      });
+      setIsMicActive(true);
+    }
+  };
+
 
   // Atualizar volume quando alterado na UI
   const handleVolumeChange = (newVol: number) => {
@@ -493,8 +533,55 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
         </div>
       </div>
 
+      {/* Controles de Pausa da Soneca */}
+      <div className="max-w-md w-full mx-auto space-y-3 pt-2">
+        {isNapPaused ? (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2 text-center">
+            <p className="text-xs font-bold text-amber-500 flex items-center justify-center gap-1">
+              <span>⏸️ Soneca Pausada</span>
+              {pauseReason && <span>({pauseReason})</span>}
+            </p>
+            <button
+              onClick={() => handleTogglePause()}
+              className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition"
+            >
+              ▶️ Retomar Soneca
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+              <span>Incluir Pausa na Soneca:</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => handleTogglePause('Troca de Fralda')}
+                className="py-2 px-2 text-[11px] font-bold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-indigo-500/20 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
+              >
+                👶 Troca Fralda
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTogglePause('Troca de Peito / Mamada')}
+                className="py-2 px-2 text-[11px] font-bold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-indigo-500/20 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
+              >
+                🤱 Amamentar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTogglePause('Colo / Achego')}
+                className="py-2 px-2 text-[11px] font-bold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-indigo-500/20 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
+              >
+                🤗 Colo / Achego
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Action Button: Bebê Acordou */}
-      <div className="max-w-md w-full mx-auto pt-4">
+      <div className="max-w-md w-full mx-auto pt-2">
         <button
           onClick={handleManualEnd}
           className={`w-full py-4 px-6 rounded-2xl font-bold text-base flex items-center justify-center space-x-2 shadow-xl transition transform active:scale-98 ${

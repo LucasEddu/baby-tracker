@@ -337,6 +337,17 @@ export async function createAppointmentFS(data: any) {
   }
 }
 
+export async function updateAppointmentFS(id: string, data: any) {
+  try {
+    const ref = doc(db, 'medical_appointments', id);
+    await updateDoc(ref, data);
+    return { id, ...data };
+  } catch (e) {
+    console.error('Firestore updateAppointmentFS error:', e);
+    return null;
+  }
+}
+
 export async function deleteAppointmentFS(id: string) {
   try {
     await deleteDoc(doc(db, 'medical_appointments', id));
@@ -346,3 +357,4 @@ export async function deleteAppointmentFS(id: string) {
     return false;
   }
 }
+

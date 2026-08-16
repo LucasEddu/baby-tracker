@@ -40,12 +40,15 @@ export default function AppointmentsPage() {
   });
 
   // Appointment form
+  const [category, setCategory] = useState<'CONSULTA' | 'EXAME' | 'TESTE'>('CONSULTA');
   const [doctorName, setDoctorName] = useState('');
   const [specialty, setSpecialty] = useState('Pediatra');
   const [type, setType] = useState<'ROUTINE' | 'EMERGENCY'>('ROUTINE');
   const [description, setDescription] = useState('');
   const [appointmentDate, setAppointmentDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<'ALL' | 'CONSULTA' | 'EXAME' | 'TESTE'>('ALL');
+
 
   // Pre-consultation questions checklist states
   const [newQuestion, setNewQuestion] = useState('');
@@ -173,12 +176,18 @@ export default function AppointmentsPage() {
 
   const monthGrid = getMonthGrid();
 
+  const filteredAppointments = appointments.filter((appt) => {
+    if (filterCategory === 'ALL') return true;
+    const apptCat = appt.category || 'CONSULTA';
+    return apptCat === filterCategory;
+  });
+
   const getAppointmentsForDate = (date: Date) => {
     const targetY = date.getFullYear();
     const targetM = date.getMonth();
     const targetD = date.getDate();
 
-    return appointments.filter((appt) => {
+    return filteredAppointments.filter((appt) => {
       const apptDate = new Date(appt.appointmentDate);
       return (
         apptDate.getFullYear() === targetY &&
@@ -190,6 +199,7 @@ export default function AppointmentsPage() {
 
   function handleOpenCreate(defaultDate?: Date) {
     setEditingApptId(null);
+    setCategory('CONSULTA');
     setDoctorName('');
     setSpecialty('Pediatra');
     setType('ROUTINE');
@@ -208,6 +218,7 @@ export default function AppointmentsPage() {
 
   function handleOpenEdit(appt: any) {
     setEditingApptId(appt.id);
+    setCategory(appt.category || 'CONSULTA');
     setDoctorName(appt.doctorName);
     setSpecialty(appt.specialty || 'Pediatra');
     setType(appt.type || 'ROUTINE');
@@ -226,10 +237,11 @@ export default function AppointmentsPage() {
     try {
       if (editingApptId) {
         await fetch('/api/appointments', {
-          method: 'PATCH',
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: editingApptId,
+            category,
             doctorName,
             specialty,
             type,
@@ -243,6 +255,7 @@ export default function AppointmentsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             babyId: targetBabyId,
+            category,
             doctorName,
             specialty,
             type,
@@ -262,6 +275,7 @@ export default function AppointmentsPage() {
       setSubmitting(false);
     }
   }
+
 
   async function handleDeleteAppointment(id: string) {
     setConfirmConfig({
@@ -329,18 +343,40 @@ export default function AppointmentsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 rounded-3xl p-6 shadow-xs dark:shadow-xl">
         <div>
           <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-500/20">
-            Agenda Médica do Bebê
+            Acompanhamento Clínico do Bebê
           </span>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100 mt-2 flex items-center gap-2">
             <Stethoscope size={26} className="text-rose-500 dark:text-indigo-400" />
-            Calendário & Consultas Médicas
+            Acompanhamento Médico
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-            Visualização em estilo Google Agendas com checklist e lembretes de rotina/emergência
+            Gerencie consultas, exames de laboratório/imagem e testes neonatais e de rotina
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Category Filter Tabs */}
+          <div className="bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl flex items-center border border-slate-200 dark:border-slate-800">
+            {[
+              { id: 'ALL', label: 'Todos' },
+              { id: 'CONSULTA', label: '🩺 Consultas' },
+              { id: 'EXAME', label: '🧪 Exames' },
+              { id: 'TESTE', label: '🔬 Testes' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setFilterCategory(tab.id as any)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  filterCategory === tab.id
+                    ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           {/* View Toggle */}
           <div className="bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl flex items-center border border-slate-200 dark:border-slate-800">
             <button
@@ -363,7 +399,7 @@ export default function AppointmentsPage() {
               }`}
             >
               <List size={15} />
-              <span>Lista ({appointments.length})</span>
+              <span>Lista ({filteredAppointments.length})</span>
             </button>
           </div>
 
@@ -372,7 +408,7 @@ export default function AppointmentsPage() {
             className="px-4 py-2.5 bg-gradient-to-r from-rose-400 to-pink-500 dark:from-indigo-600 dark:to-violet-600 text-white rounded-2xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
           >
             <Plus size={16} />
-            <span>Agendar</span>
+            <span>+ Novo Registro</span>
           </button>
         </div>
       </div>
@@ -482,10 +518,21 @@ export default function AppointmentsPage() {
                   <div className="space-y-1 mt-1 overflow-y-auto max-h-[60px] sm:max-h-[75px] scrollbar-none">
                     {dayAppts.map((appt) => {
                       const isEmergency = appt.type === 'EMERGENCY';
+                      const apptCat = appt.category || 'CONSULTA';
                       const timeStr = new Date(appt.appointmentDate).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
                       });
+
+                      const bgClass = isEmergency
+                        ? 'bg-red-500 text-white'
+                        : apptCat === 'EXAME'
+                        ? 'bg-purple-600 text-white'
+                        : apptCat === 'TESTE'
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-emerald-600 text-white';
+
+                      const icon = isEmergency ? '🚨' : apptCat === 'EXAME' ? '🧪' : apptCat === 'TESTE' ? '🔬' : '🩺';
 
                       return (
                         <div
@@ -494,14 +541,10 @@ export default function AppointmentsPage() {
                             e.stopPropagation();
                             setSelectedAppt(appt);
                           }}
-                          className={`px-1.5 py-1 rounded-lg text-[10px] font-bold truncate flex items-center gap-1 shadow-2xs transition-transform active:scale-95 ${
-                            isEmergency
-                              ? 'bg-red-500 text-white'
-                              : 'bg-emerald-500 text-white'
-                          }`}
-                          title={`${timeStr} - ${appt.doctorName} (${appt.specialty || 'Pediatra'})`}
+                          className={`px-1.5 py-1 rounded-lg text-[10px] font-bold truncate flex items-center gap-1 shadow-2xs transition-transform active:scale-95 ${bgClass}`}
+                          title={`${icon} ${timeStr} - ${appt.doctorName} (${appt.specialty || 'Geral'})`}
                         >
-                          <span className="shrink-0">{timeStr}</span>
+                          <span className="shrink-0">{icon} {timeStr}</span>
                           <span className="truncate">{appt.doctorName}</span>
                         </div>
                       );
@@ -600,6 +643,15 @@ export default function AppointmentsPage() {
               }
 
               const isEmergency = appt.type === 'EMERGENCY';
+              const apptCat = appt.category || 'CONSULTA';
+
+              const categoryBadge = isEmergency
+                ? { label: '🚨 Emergência / P.S.', style: 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 border-red-300 dark:border-red-500/30' }
+                : apptCat === 'EXAME'
+                ? { label: '🧪 Exame de Saúde', style: 'bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-300 dark:border-purple-500/30' }
+                : apptCat === 'TESTE'
+                ? { label: '🔬 Teste Neonatal', style: 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-300 dark:border-amber-500/30' }
+                : { label: '🩺 Consulta Médica', style: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20' };
 
               return (
                 <div
@@ -613,15 +665,11 @@ export default function AppointmentsPage() {
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                          isEmergency
-                            ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 border-red-300 dark:border-red-500/30'
-                            : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
-                        }`}>
-                          {isEmergency ? '🚨 Emergência / Pronto Socorro' : '🌱 Consulta de Rotina'}
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${categoryBadge.style}`}>
+                          {categoryBadge.label}
                         </span>
                         <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
-                          {appt.specialty || 'Pediatra'}
+                          {appt.specialty || 'Pediatria'}
                         </span>
                       </div>
 
@@ -693,9 +741,34 @@ export default function AppointmentsPage() {
             </div>
 
             <form onSubmit={handleSaveAppointment} className="space-y-3">
+              {/* Category Selector */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">Categoria do Registro</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'CONSULTA', label: '🩺 Consulta' },
+                    { id: 'EXAME', label: '🧪 Exame' },
+                    { id: 'TESTE', label: '🔬 Teste' },
+                  ].map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setCategory(cat.id as any)}
+                      className={`py-2 text-xs font-bold rounded-xl border transition-all ${
+                        category === cat.id
+                          ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-300 dark:border-rose-500/40 font-black'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Routine vs Emergency selector */}
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">Tipo de Consulta</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">Tipo de Atendimento</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -706,7 +779,7 @@ export default function AppointmentsPage() {
                         : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                     }`}
                   >
-                    🌱 Consulta de Rotina
+                    🌱 Rotina / Agendado
                   </button>
                   <button
                     type="button"
@@ -723,10 +796,12 @@ export default function AppointmentsPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Nome do(a) Médico(a)</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  {category === 'EXAME' ? 'Nome do Exame / Laboratório' : category === 'TESTE' ? 'Nome do Teste / Clínica' : 'Nome do(a) Médico(a)'}
+                </label>
                 <input
                   type="text"
-                  placeholder="Ex: Dra. Camila Pediatra"
+                  placeholder={category === 'EXAME' ? 'Ex: Ultrassom Abdominal / Fleury' : category === 'TESTE' ? 'Ex: Teste do Pezinho Ampliado' : 'Ex: Dra. Camila Pediatra'}
                   value={doctorName}
                   onChange={(e) => setDoctorName(e.target.value)}
                   required
@@ -735,10 +810,12 @@ export default function AppointmentsPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Especialidade</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  {category === 'EXAME' ? 'Tipo / Área do Exame' : category === 'TESTE' ? 'Tipo / Triagem' : 'Especialidade'}
+                </label>
                 <input
                   type="text"
-                  placeholder="Ex: Pediatria / Dermatologia Infantil"
+                  placeholder={category === 'EXAME' ? 'Ex: Imagem / Sangue' : category === 'TESTE' ? 'Ex: Neonatal' : 'Ex: Pediatria / Neurologia'}
                   value={specialty}
                   onChange={(e) => setSpecialty(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-rose-400 dark:focus:border-indigo-500 font-medium"

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { getAppointmentsFS, createAppointmentFS, deleteAppointmentFS, getBabiesFS } from '@/lib/firebaseStore';
+import { getAppointmentsFS, createAppointmentFS, updateAppointmentFS, deleteAppointmentFS, getBabiesFS } from '@/lib/firebaseStore';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -37,13 +37,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { babyId, doctorName, specialty, type, description, appointmentDate, preNotes, postNotes, status } = body;
+    const { babyId, doctorName, specialty, type, category, description, appointmentDate, preNotes, postNotes, status } = body;
 
     const fsRecord = await createAppointmentFS({
       babyId,
       doctorName,
       specialty: specialty || null,
       type: type || 'ROUTINE',
+      category: category || 'CONSULTA',
       description: description || null,
       appointmentDate: appointmentDate ? new Date(appointmentDate).toISOString() : new Date().toISOString(),
       preNotes: preNotes || null,
@@ -74,6 +75,49 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, doctorName, specialty, type, category, description, appointmentDate, preNotes, postNotes, status } = body;
+
+    if (!id) return NextResponse.json({ error: 'ID necessário' }, { status: 400 });
+
+    const updateData: any = {
+      doctorName,
+      specialty: specialty || null,
+      type: type || 'ROUTINE',
+      category: category || 'CONSULTA',
+      description: description || null,
+      appointmentDate: appointmentDate ? new Date(appointmentDate).toISOString() : new Date().toISOString(),
+      preNotes: preNotes || null,
+      postNotes: postNotes || null,
+      status: status || 'SCHEDULED',
+    };
+
+    const updated = await updateAppointmentFS(id, updateData);
+
+    try {
+      await prisma.medicalAppointment.update({
+        where: { id },
+        data: {
+          doctorName,
+          specialty,
+          type: type || 'ROUTINE',
+          description,
+          appointmentDate: new Date(appointmentDate),
+          preNotes,
+          postNotes,
+          status: status || 'SCHEDULED',
+        },
+      });
+    } catch (e) {}
+
+    return NextResponse.json(updated || { id, ...updateData });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -88,3 +132,4 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+

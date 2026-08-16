@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, TrendingUp, Syringe, Stethoscope, Sun, Moon } from 'lucide-react';
+import { Home, TrendingUp, Syringe, Stethoscope, Sun, Moon, Sparkles, BookOpen } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export default function BottomNav() {
@@ -19,10 +19,11 @@ export default function BottomNav() {
 
   const navItems = [
     { href: '/', label: 'Hoje', icon: Home },
-    { href: '/growth', label: 'Crescimento', icon: TrendingUp },
-    { href: '/vaccines', label: 'Vacinas', icon: Syringe },
-    { href: '/appointments', label: 'Consultas', icon: Stethoscope },
+    { href: '/leaps', label: 'Saltos', icon: Sparkles },
+    { href: '/appointments', label: 'Saúde', icon: Stethoscope },
+    { href: '/knowledge', label: 'Acervo', icon: BookOpen },
   ];
+
 
   return (
     <>
