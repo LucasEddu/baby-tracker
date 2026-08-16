@@ -119,6 +119,23 @@ export default function RemindersPage() {
 
   useEffect(() => {
     loadReminders();
+
+    let unsub: any = null;
+    const setupListener = async () => {
+      try {
+        const { db } = await import('@/lib/firebase');
+        const { collection, onSnapshot, query, orderBy } = await import('firebase/firestore');
+        const q = query(collection(db, 'reminders'), orderBy('createdAt', 'desc'));
+        unsub = onSnapshot(q, () => {
+          loadReminders();
+        });
+      } catch (e) {}
+    };
+    setupListener();
+
+    return () => {
+      if (unsub) unsub();
+    };
   }, []);
 
   // Controls Zoom
@@ -250,35 +267,6 @@ export default function RemindersPage() {
 
     setSubmitting(true);
     try {
-      // 1. Tenta gravar no Firebase Cloud Firestore (sincronização em tempo real do casal)
-      try {
-        const { db } = await import('@/lib/firebase');
-        const { collection, addDoc, doc, updateDoc } = await import('firebase/firestore');
-
-        if (editingId) {
-          const remRef = doc(db, 'reminders', editingId);
-          await updateDoc(remRef, {
-            title: title.trim(),
-            content: content.trim(),
-            color,
-            remindAt: remindAt || null,
-            updatedAt: new Date().toISOString(),
-          });
-        } else {
-          await addDoc(collection(db, 'reminders'), {
-            babyId: activeBabyId,
-            title: title.trim(),
-            content: content.trim(),
-            color,
-            remindAt: remindAt || null,
-            createdAt: new Date().toISOString(),
-          });
-        }
-      } catch (firestoreErr) {
-        console.error('Erro Firestore Reminders:', firestoreErr);
-      }
-
-      // 2. Tenta sincronizar com API Prisma local se disponível
       if (editingId) {
         await fetch('/api/reminders', {
           method: 'PUT',
@@ -351,16 +339,6 @@ export default function RemindersPage() {
       onConfirm: async () => {
         setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
         try {
-          // 1. Deleta do Cloud Firestore
-          try {
-            const { db } = await import('@/lib/firebase');
-            const { doc, deleteDoc } = await import('firebase/firestore');
-            await deleteDoc(doc(db, 'reminders', id));
-          } catch (fsErr) {
-            console.error('Erro ao deletar no Firestore:', fsErr);
-          }
-
-          // 2. Tenta deletar no Prisma se existir
           await fetch(`/api/reminders?id=${id}`, { method: 'DELETE' });
           await loadReminders();
         } catch (err) {

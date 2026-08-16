@@ -256,6 +256,20 @@ export async function createReminderFS(data: any) {
   }
 }
 
+export async function updateReminderFS(id: string, data: any) {
+  try {
+    const ref = doc(db, 'reminders', id);
+    await updateDoc(ref, {
+      ...data,
+      updatedAt: new Date().toISOString(),
+    });
+    return { id, ...data };
+  } catch (e) {
+    console.error('Firestore updateReminderFS error:', e);
+    return null;
+  }
+}
+
 export async function deleteReminderFS(id: string) {
   try {
     await deleteDoc(doc(db, 'reminders', id));

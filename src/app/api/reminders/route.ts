@@ -1,5 +1,11 @@
 import { prisma } from '@/lib/prisma';
-import { getRemindersFS, createReminderFS, deleteReminderFS, getBabiesFS } from '@/lib/firebaseStore';
+import {
+  getRemindersFS,
+  createReminderFS,
+  updateReminderFS,
+  deleteReminderFS,
+  getBabiesFS,
+} from '@/lib/firebaseStore';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -36,7 +42,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { babyId, title, content, color } = body;
+    const { id, babyId, title, content, color, remindAt } = body;
 
     let targetBabyId = babyId;
     if (!targetBabyId) {
@@ -44,11 +50,29 @@ export async function POST(request: Request) {
       targetBabyId = babies[0]?.id || 'demo-baby-id';
     }
 
+    if (id) {
+      const updateData = {
+        title,
+        content,
+        color: color || 'yellow',
+        ...(remindAt && { remindAt }),
+      };
+      const fsUpdated = await updateReminderFS(id, updateData);
+      try {
+        await prisma.reminder.update({
+          where: { id },
+          data: { title, content, color: color || 'yellow' },
+        });
+      } catch (dbErr) {}
+      return NextResponse.json(fsUpdated || { id, ...updateData });
+    }
+
     const fsRecord = await createReminderFS({
       babyId: targetBabyId,
       title,
       content,
       color: color || 'yellow',
+      ...(remindAt && { remindAt }),
     });
 
     try {
@@ -76,6 +100,10 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  return POST(request);
+}
+
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -85,7 +113,7 @@ export async function DELETE(request: Request) {
     await deleteReminderFS(id);
     try { await prisma.reminder.delete({ where: { id } }); } catch (dbErr) {}
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, id });
   } catch (error: any) {
     return NextResponse.json({ success: true });
   }

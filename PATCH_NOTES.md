@@ -2,6 +2,17 @@
 
 ---
 
+## 📌 Versão 2.6.1 — (16/08/2026)
+### 🐛 Correção do Bug de Duplicação de Pins / Post-its no Mural
+1. **📌 Eliminação de Gravações Duplicadas no Firestore**:
+   - Identificada e corrigida a chamada simultânea que efetuava `addDoc` no frontend e redundante no backend (`createReminderFS`).
+   - Centralizada a criação e atualização de pins através de rota unificada `/api/reminders`, garantindo a criação de exatamente 1 único documento por post-it.
+
+2. **🔄 Sincronização em Tempo Real no Mural (`onSnapshot`)**:
+   - Adicionado listener de tempo real Firestore no Mural de Lembretes, permitindo atualização instantânea de pins criados ou movidos entre os pais.
+
+---
+
 ## 📌 Versão 2.6.0 — (16/08/2026)
 ### 🤱 Cronômetro de Amamentação Compartilhado em Tempo Real
 1. **🔄 Amamentação Ativa Sincronizada em Casal**:
