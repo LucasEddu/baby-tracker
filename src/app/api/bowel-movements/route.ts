@@ -9,6 +9,7 @@ import {
   getGrowthFS,
   getVaccinesFS,
   getAppointmentsFS,
+  getNapSessionsFS,
 } from '@/lib/firebaseStore';
 import { NextResponse } from 'next/server';
 
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
     let growth = await getGrowthFS(targetBaby.id);
     let vaccines = await getVaccinesFS(targetBaby.id);
     let appointments = await getAppointmentsFS(targetBaby.id);
-    let napSessions: any[] = [];
+    let napSessions = await getNapSessionsFS(targetBaby.id);
 
     // Fallback para Prisma se Firestore estiver sem dados
     if (bowel.length === 0) {
@@ -55,7 +56,9 @@ export async function GET(request: Request) {
     if (appointments.length === 0) {
       try { appointments = await prisma.medicalAppointment.findMany({ where: { babyId: targetBaby.id }, orderBy: { appointmentDate: 'desc' } }); } catch (e) {}
     }
-    try { napSessions = await (prisma as any).napSession.findMany({ where: { babyId: targetBaby.id }, orderBy: { startedAt: 'desc' } }); } catch (e) {}
+    if (napSessions.length === 0) {
+      try { napSessions = await (prisma as any).napSession.findMany({ where: { babyId: targetBaby.id }, orderBy: { startedAt: 'desc' } }); } catch (e) {}
+    }
 
     // Início de hoje (meia-noite)
     const startOfToday = new Date();

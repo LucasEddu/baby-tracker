@@ -2,6 +2,32 @@
 
 ---
 
+## 📌 Versão 2.5.0 — (16/08/2026)
+### 📱 PWA (Progressive Web App) & Suporte Mobile Nativo
+1. **📲 Aplicativo Instalável (PWA)**:
+   - Configuração completa com `@ducanh2912/next-pwa` e manifest nativo (`/manifest.json` e `src/app/manifest.ts`).
+   - Suporte a instalação nativa no Android (Chrome) e iOS (Safari "Adicionar à Tela de Início").
+   - Execução em modo tela cheia (*standalone*) com barra de status adaptativa (`black-translucent` / `#0f172a`).
+
+2. **🎨 Ícones Nativos e Assets PWA**:
+   - Ícones de alta resolução gerados em `public/icons/` (192x192, 512x512 e maskable).
+   - Suporte a cache inteligente para carregamento rápido offline.
+
+---
+
+## 📌 Versão 2.4.1 — (16/08/2026)
+### 🌟 Novas Funcionalidades & Melhorias
+1. **⏰ Utilitário de Janela de Vigília (`src/lib/sleep-window.ts`)**:
+   - Algoritmo de cálculo dinâmico da Janela de Vigília/Sono baseado na idade exata do bebê em dias (0-30d, 31-60d, 61-120d e >120d).
+   - Classificação visual automática no Dashboard: *Acordado / Tranquilo* (verde), *Momento Ideal p/ Soneca* (índigo), *Janela Estourando* (âmbar) e *Sobrecansaço* (rosa).
+
+2. **🔄 Sincronização de Soneca Ativa em Tempo Real via Firebase**:
+   - Registro de soneca ativa (`status: 'RUNNING'`) no Firestore instantaneamente no momento em que o modo soneca é ativado.
+   - Sincronização via `onSnapshot` no Dashboard: quando a mãe ou pai ativa uma soneca em um dispositivo, **todos os demais dispositivos conectados exibem imediatamente o status "Dormindo 🌙"**.
+   - Atualização automática para `status: 'FINISHED'` e gravação da duração final no banco ao concluir.
+
+---
+
 ## 📌 Versão 2.4.0 — (16/08/2026)
 ### 🌟 Novas Funcionalidades
 1. **🧠 Acervo de Conhecimento Pediátrico (`/knowledge`)**:

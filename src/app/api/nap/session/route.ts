@@ -1,23 +1,33 @@
 import { prisma } from '@/lib/prisma';
+import {
+  getNapSessionsFS,
+  createNapSessionFS,
+  updateNapSessionFS,
+} from '@/lib/firebaseStore';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const babyId = searchParams.get('babyId');
+    const babyId = searchParams.get('babyId') || undefined;
 
-    const baby = babyId
-      ? await prisma.baby.findUnique({ where: { id: babyId } })
-      : await prisma.baby.findFirst();
+    let sessions = await getNapSessionsFS(babyId);
+    if (!sessions || sessions.length === 0) {
+      try {
+        const baby = babyId
+          ? await prisma.baby.findUnique({ where: { id: babyId } })
+          : await prisma.baby.findFirst();
 
-    if (!baby) return NextResponse.json([]);
+        if (baby) {
+          sessions = await (prisma as any).napSession.findMany({
+            where: { babyId: baby.id },
+            orderBy: { startedAt: 'desc' },
+          });
+        }
+      } catch (e) {}
+    }
 
-    const sessions = await (prisma as any).napSession.findMany({
-      where: { babyId: baby.id },
-      orderBy: { startedAt: 'desc' },
-    });
-
-    return NextResponse.json(sessions);
+    return NextResponse.json(sessions || []);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -26,47 +36,83 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { babyId, userId, startedAt, endedAt, durationMinutes, endReason, whiteNoiseUsed } = body;
+    const { id, babyId, userId, startedAt, endedAt, durationMinutes, endReason, whiteNoiseUsed, status } = body;
 
     let targetBabyId = babyId;
     let targetUserId = userId;
 
     if (!targetBabyId) {
-      const firstBaby = await prisma.baby.findFirst();
-      if (!firstBaby) return NextResponse.json({ error: 'Nenhum bebê cadastrado' }, { status: 400 });
-      targetBabyId = firstBaby.id;
+      const firstBaby = await prisma.baby.findFirst().catch(() => null);
+      if (firstBaby) targetBabyId = firstBaby.id;
     }
 
     if (!targetUserId) {
-      const firstUser = await prisma.user.findFirst();
+      const firstUser = await prisma.user.findFirst().catch(() => null);
       if (firstUser) {
         targetUserId = firstUser.id;
-      } else {
-        // Criar usuário padrão se não existir nenhum
-        const newUser = await prisma.user.create({
-          data: {
-            name: 'Responsável',
-            email: 'parent@babytracker.app',
-            passwordHash: 'demo',
-          },
-        });
-        targetUserId = newUser.id;
       }
     }
 
-    const napSession = await (prisma as any).napSession.create({
-      data: {
-        babyId: targetBabyId,
-        userId: targetUserId,
-        startedAt: startedAt ? new Date(startedAt) : new Date(),
-        endedAt: endedAt ? new Date(endedAt) : new Date(),
+    // Se um ID for fornecido, trata-se da ATUALIZAÇÃO de uma soneca em andamento (finalização)
+    if (id) {
+      const updateData: any = {
+        endedAt: endedAt ? new Date(endedAt).toISOString() : new Date().toISOString(),
         durationMinutes: durationMinutes ? parseInt(durationMinutes, 10) : 0,
         endReason: endReason || 'manual',
-        whiteNoiseUsed: whiteNoiseUsed || null,
-      },
-    });
+        status: status || 'FINISHED',
+        ...(whiteNoiseUsed && { whiteNoiseUsed }),
+      };
 
-    return NextResponse.json(napSession);
+      const fsUpdated = await updateNapSessionFS(id, updateData);
+
+      try {
+        await (prisma as any).napSession.update({
+          where: { id },
+          data: {
+            endedAt: endedAt ? new Date(endedAt) : new Date(),
+            durationMinutes: durationMinutes ? parseInt(durationMinutes, 10) : 0,
+            endReason: endReason || 'manual',
+            whiteNoiseUsed: whiteNoiseUsed || null,
+          },
+        });
+      } catch (e) {}
+
+      return NextResponse.json(fsUpdated || { id, ...updateData });
+    }
+
+    // Caso contrário, trata-se de um NOVO REGISTRO de soneca (seja em andamento RUNNING ou já encerrada FINISHED)
+    const isRunning = !endedAt || status === 'RUNNING';
+    const recordData = {
+      babyId: targetBabyId,
+      userId: targetUserId || 'demo-user',
+      startedAt: startedAt ? new Date(startedAt).toISOString() : new Date().toISOString(),
+      endedAt: isRunning ? null : (endedAt ? new Date(endedAt).toISOString() : new Date().toISOString()),
+      durationMinutes: isRunning ? null : (durationMinutes ? parseInt(durationMinutes, 10) : 0),
+      endReason: isRunning ? null : (endReason || 'manual'),
+      whiteNoiseUsed: whiteNoiseUsed || null,
+      status: isRunning ? 'RUNNING' : 'FINISHED',
+    };
+
+    const fsCreated = await createNapSessionFS(recordData);
+
+    try {
+      if (targetBabyId && targetUserId) {
+        await (prisma as any).napSession.create({
+          data: {
+            id: fsCreated?.id,
+            babyId: targetBabyId,
+            userId: targetUserId,
+            startedAt: new Date(recordData.startedAt),
+            endedAt: isRunning ? null : new Date(recordData.endedAt!),
+            durationMinutes: recordData.durationMinutes,
+            endReason: recordData.endReason,
+            whiteNoiseUsed: recordData.whiteNoiseUsed,
+          },
+        });
+      }
+    } catch (e) {}
+
+    return NextResponse.json(fsCreated || { id: `nap-${Date.now()}`, ...recordData });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

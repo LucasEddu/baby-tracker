@@ -27,6 +27,7 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
   // Timer states
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const startTimeRef = useRef<Date | null>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
 
   // Nap Pause states
   const [isNapPaused, setIsNapPaused] = useState(false);
@@ -81,35 +82,101 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
     };
   }, [isOpen]);
 
+  const [isSyncedNap, setIsSyncedNap] = useState(false);
+
   // Inicializar Soneca (Timer, Player e Monitor de Choro)
   useEffect(() => {
     if (!isOpen) return;
 
-    startTimeRef.current = new Date();
-    setSecondsElapsed(0);
     setPausedSeconds(0);
     setIsNapPaused(false);
     setPauseReason(null);
     setEndAlert(null);
     setMicError(null);
+    setIsSyncedNap(false);
 
-    // 1. Iniciar Player de Áudio
+    // 1. Buscar se já existe uma soneca em andamento (iniciada por outro parceiro/dispositivo)
+    fetch(`/api/nap/session${babyId ? `?babyId=${babyId}` : ''}`)
+      .then((res) => res.json())
+      .then((sessions) => {
+        const active = Array.isArray(sessions) ? sessions.find((s: any) => s.status === 'RUNNING' || !s.endedAt) : null;
+        if (active) {
+          const start = new Date(active.startedAt || active.createdAt || Date.now());
+          startTimeRef.current = start;
+          activeSessionIdRef.current = active.id;
+          const initialSec = Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000));
+          setSecondsElapsed(initialSec);
+          setIsSyncedNap(true);
+          if (active.whiteNoiseUsed) {
+            setSelectedSound(active.whiteNoiseUsed as SoundType);
+          }
+        } else {
+          startTimeRef.current = new Date();
+          activeSessionIdRef.current = null;
+          setSecondsElapsed(0);
+          setIsSyncedNap(false);
+
+          fetch('/api/nap/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              babyId,
+              startedAt: startTimeRef.current.toISOString(),
+              status: 'RUNNING',
+              whiteNoiseUsed: selectedSound,
+            }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data?.id) {
+                activeSessionIdRef.current = data.id;
+              }
+            })
+            .catch((err) => console.error('Erro ao registrar início de soneca:', err));
+        }
+      })
+      .catch(() => {
+        startTimeRef.current = new Date();
+        activeSessionIdRef.current = null;
+        setSecondsElapsed(0);
+      });
+
+    // 2. Iniciar Player de Áudio
     whiteNoisePlayer.play(selectedSound, volume, 2);
     setIsPlayingNoise(true);
 
-    // 2. Iniciar Cronômetro
+    // 3. Iniciar Cronômetro Sincronizado
     const timerInterval = setInterval(() => {
       setIsNapPaused((paused) => {
-        if (!paused) {
-          setSecondsElapsed((prev) => prev + 1);
-        } else {
+        if (!paused && startTimeRef.current) {
+          const liveSec = Math.max(0, Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000));
+          setSecondsElapsed(liveSec);
+        } else if (paused) {
           setPausedSeconds((prev) => prev + 1);
         }
         return paused;
       });
     }, 1000);
 
-    // 3. Iniciar Monitor de Choro
+    // 4. Polling de sincronização remota (verifica se o outro responsável encerrou a soneca)
+    const remoteSyncInterval = setInterval(() => {
+      if (activeSessionIdRef.current) {
+        fetch(`/api/nap/session${babyId ? `?babyId=${babyId}` : ''}`)
+          .then((res) => res.json())
+          .then((sessions) => {
+            if (Array.isArray(sessions)) {
+              const currentSession = sessions.find((s: any) => s.id === activeSessionIdRef.current);
+              if (currentSession && (currentSession.status === 'FINISHED' || currentSession.endedAt)) {
+                // Soneca finalizada em outro dispositivo
+                onClose();
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    }, 3500);
+
+    // 5. Iniciar Monitor de Choro
     cryDetector.start(micSensitivity, {
       onCryDetected: () => {
         handleCryDetected();
@@ -127,6 +194,7 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
 
     return () => {
       clearInterval(timerInterval);
+      clearInterval(remoteSyncInterval);
       whiteNoisePlayer.stop(0);
       cryDetector.stop();
     };
@@ -212,18 +280,20 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
     const endedAt = new Date();
     const durationMin = Math.max(1, Math.round(secondsElapsed / 60));
 
-    // Salvar no Banco
+    // Salvar no Banco (finalizar sessão ativa)
     try {
       await fetch('/api/nap/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id: activeSessionIdRef.current || undefined,
           babyId,
           startedAt: startTimeRef.current?.toISOString(),
           endedAt: endedAt.toISOString(),
           durationMinutes: durationMin,
           endReason: 'cry_detected',
           whiteNoiseUsed: selectedSound,
+          status: 'FINISHED',
         }),
       });
     } catch {}
@@ -263,12 +333,14 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id: activeSessionIdRef.current || undefined,
           babyId,
           startedAt: startTimeRef.current?.toISOString(),
           endedAt: endedAt.toISOString(),
           durationMinutes: durationMin,
           endReason: 'manual',
           whiteNoiseUsed: selectedSound,
+          status: 'FINISHED',
         }),
       });
     } catch {}
@@ -299,7 +371,7 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
         <div className="flex items-center space-x-2">
           <span className={`inline-block w-2.5 h-2.5 rounded-full ${isDark ? 'bg-indigo-500' : 'bg-rose-400'} animate-pulse`} />
           <span className={`text-xs tracking-wider uppercase font-semibold ${isDark ? 'text-indigo-400' : 'text-rose-500'}`}>
-            Modo Soneca Ativo
+            {isSyncedNap ? 'Soneca Ativa (Sincronizada em Tempo Real 🔄)' : 'Modo Soneca Ativo'}
           </span>
         </div>
 

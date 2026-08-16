@@ -358,3 +358,63 @@ export async function deleteAppointmentFS(id: string) {
   }
 }
 
+// ==================== NAP SESSIONS (SONECAS) ====================
+export async function getNapSessionsFS(babyId?: string) {
+  try {
+    let q;
+    if (babyId) {
+      q = query(collection(db, 'nap_sessions'), where('babyId', '==', babyId));
+    } else {
+      q = query(collection(db, 'nap_sessions'));
+    }
+    const snap = await getDocs(q);
+    const list: any[] = [];
+    snap.forEach((d) => {
+      list.push({ id: d.id, ...d.data() });
+    });
+    list.sort((a, b) => new Date(b.startedAt || 0).getTime() - new Date(a.startedAt || 0).getTime());
+    return list;
+  } catch (e) {
+    console.error('Firestore getNapSessionsFS error:', e);
+    return [];
+  }
+}
+
+export async function createNapSessionFS(data: any) {
+  try {
+    const record = {
+      ...data,
+      startedAt: data.startedAt || new Date().toISOString(),
+      status: data.status || (data.endedAt ? 'FINISHED' : 'RUNNING'),
+      createdAt: new Date().toISOString(),
+    };
+    const docRef = await addDoc(collection(db, 'nap_sessions'), record);
+    return { id: docRef.id, ...record };
+  } catch (e) {
+    console.error('Firestore createNapSessionFS error:', e);
+    return null;
+  }
+}
+
+export async function updateNapSessionFS(id: string, data: any) {
+  try {
+    const ref = doc(db, 'nap_sessions', id);
+    await updateDoc(ref, data);
+    return { id, ...data };
+  } catch (e) {
+    console.error('Firestore updateNapSessionFS error:', e);
+    return null;
+  }
+}
+
+export async function deleteNapSessionFS(id: string) {
+  try {
+    await deleteDoc(doc(db, 'nap_sessions', id));
+    return true;
+  } catch (e) {
+    console.error('Firestore deleteNapSessionFS error:', e);
+    return false;
+  }
+}
+
+

@@ -27,6 +27,7 @@ import {
   Volume2,
 } from 'lucide-react';
 import { formatAge, translateColor, translateConsistency } from '@/lib/utils';
+import { calculateSleepWindow } from '@/lib/sleep-window';
 import Link from 'next/link';
 import SmartNapModal from '@/components/nap/SmartNapModal';
 import ConfirmModal from '@/components/layout/ConfirmModal';
@@ -119,10 +120,12 @@ export default function DashboardPage() {
         const q1 = query(collection(db, 'bowel_movements'), where('babyId', '==', activeBabyId));
         const q2 = query(collection(db, 'feeding_logs'), where('babyId', '==', activeBabyId));
         const q3 = query(collection(db, 'growth_records'), where('babyId', '==', activeBabyId));
+        const q4 = query(collection(db, 'nap_sessions'), where('babyId', '==', activeBabyId));
 
         unsubscribes.push(onSnapshot(q1, () => loadData(false)));
         unsubscribes.push(onSnapshot(q2, () => loadData(false)));
         unsubscribes.push(onSnapshot(q3, () => loadData(false)));
+        unsubscribes.push(onSnapshot(q4, () => loadData(false)));
       } catch (e) {}
     }
 
@@ -457,14 +460,21 @@ export default function DashboardPage() {
     : 'Sem registros';
 
   // 3. Sleep Status & Wake Window
-  const latestNap = napSessions[0];
-  const isSleeping = latestNap && (latestNap.status === 'RUNNING' || !latestNap.endedAt);
+  const activeNap = napSessions.find((n: any) => n.status === 'RUNNING' || !n.endedAt);
+  const isSleeping = Boolean(activeNap);
+  const latestNap = activeNap || napSessions[0];
+  const lastFinishedNap = napSessions.find((n: any) => n.endedAt);
+  const sleepWindow = calculateSleepWindow(
+    lastFinishedNap?.endedAt || null,
+    baby?.birthDate || new Date()
+  );
+
   const sleepStatusText = isSleeping ? 'Dormindo 🌙' : 'Acordado ☀️';
   const wakeWindowText = isSleeping
     ? `Soneca em andamento (${formatRelativeTime(latestNap?.startedAt)})`
-    : latestNap?.endedAt
-    ? `Janela de vigília: ${formatRelativeTime(latestNap.endedAt)}`
-    : 'Acordado';
+    : sleepWindow.minutesAwake > 0
+    ? `Acordado há ${sleepWindow.minutesAwake} min`
+    : 'Acordado agora';
 
   // 4. Today Summary
   const startOfToday = new Date();
@@ -625,10 +635,14 @@ export default function DashboardPage() {
           </button>
           <button
             onClick={() => setIsNapModalOpen(true)}
-            className="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs rounded-2xl shadow-lg shadow-indigo-500/20 active:scale-95 transition flex items-center justify-center gap-2"
+            className={`flex-1 sm:flex-none px-4 py-2.5 font-bold text-xs rounded-2xl shadow-lg active:scale-95 transition flex items-center justify-center gap-2 ${
+              isSleeping
+                ? 'bg-gradient-to-r from-indigo-600 to-violet-700 text-white border border-indigo-400/50 ring-2 ring-indigo-500/40 shadow-indigo-500/30'
+                : 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-indigo-500/20'
+            }`}
           >
-            <Moon size={16} className="fill-white" />
-            <span>🌙 Modo Soneca Smart</span>
+            <Moon size={16} className={`fill-white ${isSleeping ? 'animate-pulse' : ''}`} />
+            <span>{isSleeping ? '🌙 Soneca em Andamento (Acompanhar Live)' : '🌙 Modo Soneca Smart'}</span>
           </button>
         </div>
       </div>
@@ -699,10 +713,16 @@ export default function DashboardPage() {
             <p className="text-xs text-slate-400 font-medium truncate mt-0.5">{wakeWindowText}</p>
           </div>
 
-          <div className="pt-2 border-t border-slate-800">
-            <span className="inline-block text-[10px] font-bold text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20">
-              {napSessions.length} soneca(s) salvas
-            </span>
+          <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+            {isSleeping ? (
+              <span className="inline-block text-[10px] font-bold text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20">
+                Soneca em andamento
+              </span>
+            ) : (
+              <span className={`inline-block text-[10px] font-bold px-2.5 py-1 rounded-full ${sleepWindow.badgeClass}`}>
+                {sleepWindow.label}
+              </span>
+            )}
           </div>
         </div>
 

@@ -20,26 +20,38 @@ Oferece suporte a **Modo Escuro (Dark Mode)** e **Modo Claro Acolhedor**, múlti
 - **Detalhamento Avançado:** Seleção de cor (*Amarelo 🟡, Verde 🟢, Castanho 🟤, Meconial 🖤, Alerta/Sangue 🚨*) e consistência (*Pastoso, Líquido, Endurecido, Mecônio*).
 - **Alerta de Constipação:** Notificação visual em destaque caso não haja registro de evacuação de fezes há mais de 36 horas.
 
-### 3. 📏 Crescimento & Antropometria (`/growth`)
+### 3. 🌙 Modo Soneca Smart, Janela de Vigília & Detector de Choro
+- **Janela de Vigília Inteligente:** Cálculo automatizado do tempo acordado baseado na faixa etária do bebê (0-30d, 31-60d, 61-120d, >120d) com alertas visuais (*Acordado / Tranquilo*, *Momento Ideal p/ Soneca*, *Janela Estourando*, *Sobrecansaço*).
+- **Sincronização em Tempo Real via Firebase:** Quando qualquer responsável ativa a soneca num dispositivo, todos os outros dispositivos conectados atualizam o status instantaneamente para **Dormindo 🌙**.
+- **Detector de Choro (Web Audio API):** Monitoramento contínuo de áudio com cálculo de volume (dB/RMS) que encerra automaticamente a soneca e dispara alertas ao detectar choro prolongado (>3s).
+- **Player de Ruído Branco:** Sons relaxantes (Chuva, Útero, Ruído Branco) com esmaecimento automático ao encerrar a soneca.
+
+### 4. 🧠 Acervo de Conhecimento Pediátrico (`/knowledge`)
+- **Base Evidenciada (OMS / SBP / AAP):** Guias práticos sobre amamentação, pega correta, higiene do sono seguro (SIDS), introdução alimentar (BLW) e desobstrução de vias aéreas (Manobra de Heimlich).
+
+### 5. 🚀 Saltos de Desenvolvimento (`/leaps`)
+- **10 Saltos Mentais (*Wonder Weeks*):** Mapeamento dinâmico da idade semanal do bebê, indicando fases da **Tempestade 🌩️** vs. **Fase do Sol ☀️** e checklists de marcos.
+
+### 6. 📏 Crescimento & Antropometria (`/growth`)
 - **Gráficos Interativos (Recharts):** Curvas de evolução visual para **Peso (kg)**, **Estatura (cm)** e **Perímetro Cefálico (cm)** dispostos em colunas lado a lado no Desktop.
 - **Historização:** Registro de peso (em gramas), altura (em cm) e perímetro cefálico informando a origem da medição (*Em Casa 🏠* ou *Consulta Médica 🩺*).
 
-### 4. 💉 Carteira de Vacinação (`/vaccines`)
+### 7. 💉 Carteira de Vacinação (`/vaccines`)
 - **Calendário Infantil da SBP / Ministério da Saúde:** Lista pré-cadastrada com 22 vacinas obrigatórias e recomendadas.
 - **Agrupamento por Idade:** Abas retráteis e expansíveis (*Ao Nascer, 2 Meses, 3 Meses, 4 Meses, 5 Meses, 6 Meses, 9 Meses, 12 Meses e 15 Meses*).
 - **Status & Métricas:** Barra de progresso percentual da vacinação e campos para lote, local de aplicação e efeitos colaterais.
 
-### 5. 🩺 Consultas Médicas & Checklist (`/appointments`)
-- **Cadastro Completo:** Nome do médico, especialidade (*Pediatria, Odontopediatria, etc.*), data/horário e motivo/descrição da consulta.
+### 8. 🩺 Consultas Médicas & Acompanhamento (`/appointments`)
+- **Cadastro Completo & Exames:** Gestão de consultas médicas, exames laboratoriais/imagem e testes neonatais.
 - **Classificação:** Diferenciação visual entre **🌱 Consulta de Rotina** e **🚨 Emergência / Pronto Socorro**.
 - **Checklist "Antes da Consulta":** Bloco interativo de dúvidas para o pediatra com marcação de perguntas concluídas.
 - **Orientações Pós-Consulta:** Bloco de anotações para prescrições e recomendações médicas.
 
-### 6. 📌 Mural de Lembretes & Post-its (`/reminders`)
+### 9. 📌 Mural de Lembretes & Post-its (`/reminders`)
 - **Quadro de Avisos do Bebê:** Mural de pins e recados coloridos (*Amarelo Pássaro 🟡, Rosa Chiclete 🩷, Verde Menta 🟢, Azul Céu 💙 e Roxo Lavanda 💜*).
 - **Lembretes Rápidos:** Perfeito para anotações de horários de medicamentos, recados de fralda e avisos da rotina.
 
-### 7. 👶 Suporte a Múltiplos Bebês & Temas
+### 10. 👶 Suporte a Múltiplos Bebês & Temas
 - **Perfis Independentes:** Cadastre e alterne facilmente entre perfis de diferentes bebês no cabeçalho.
 - **Modo Claro Acolhedor & Dark Mode:** Alternador de tema com salvamento de preferência.
 

@@ -29,3 +29,4 @@ yarn-error.log*
 .windsurf/
 skills-lock.json
 *.tsbuildinfo
+scratch/
