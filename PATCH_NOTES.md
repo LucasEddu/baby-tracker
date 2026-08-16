@@ -2,6 +2,17 @@
 
 ---
 
+## 📌 Versão 2.6.0 — (16/08/2026)
+### 🤱 Cronômetro de Amamentação Compartilhado em Tempo Real
+1. **🔄 Amamentação Ativa Sincronizada em Casal**:
+   - Registro de mamada ativa (`status: 'RUNNING'`) no Firestore instantaneamente ao iniciar o cronômetro (Peito Esquerdo 🤱, Peito Direito 🤱 ou Mamadeira 🍼).
+   - Todos os dispositivos conectados do casal acompanham o cronômetro de amamentação ao vivo (segundo a segundo), com atualizações instantâneas de pausa, troca de peito e encerramento.
+
+2. **🚫 Opção de Cancelar Mamada (Clique Acidental)**:
+   - Adicionado botão **"Cancelar Mamada"** no card de amamentação para descartar timers iniciados por engano.
+
+---
+
 ## 📌 Versão 2.5.1 — (16/08/2026)
 ### 🗑️ Cancelamento de Soneca Ativa & Exclusão no Histórico
 1. **🚫 Cancelar Soneca em Andamento (Clique Acidental)**:

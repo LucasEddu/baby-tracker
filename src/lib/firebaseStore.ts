@@ -141,12 +141,24 @@ export async function createFeedingFS(data: any) {
     const record = {
       ...data,
       startedAt: data.startedAt || new Date().toISOString(),
+      status: data.status || (data.endedAt ? 'FINISHED' : 'RUNNING'),
       createdAt: new Date().toISOString(),
     };
     const docRef = await addDoc(collection(db, 'feeding_logs'), record);
     return { id: docRef.id, ...record };
   } catch (e) {
     console.error('Firestore createFeedingFS error:', e);
+    return null;
+  }
+}
+
+export async function updateFeedingFS(id: string, data: any) {
+  try {
+    const ref = doc(db, 'feeding_logs', id);
+    await updateDoc(ref, data);
+    return { id, ...data };
+  } catch (e) {
+    console.error('Firestore updateFeedingFS error:', e);
     return null;
   }
 }

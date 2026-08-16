@@ -42,6 +42,7 @@ export default function DashboardPage() {
 
   // Breastfeeding / Feeding Timer State
   const [activeFeeding, setActiveFeeding] = useState<{
+    id?: string;
     side: 'LEFT_BREAST' | 'RIGHT_BREAST' | 'BOTTLE';
     startTime: number;
     elapsedSec: number;
@@ -74,20 +75,20 @@ export default function DashboardPage() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Feeding timer interval effect (respeitando pausa)
+  // Feeding timer interval effect (respeitando pausa e timestamp inicial)
   useEffect(() => {
     let interval: any = null;
     if (activeFeeding && !activeFeeding.isPaused) {
       interval = setInterval(() => {
-        setActiveFeeding((prev) =>
-          prev && !prev.isPaused
-            ? { ...prev, elapsedSec: prev.elapsedSec + 1 }
-            : prev
-        );
+        setActiveFeeding((prev) => {
+          if (!prev || prev.isPaused) return prev;
+          const liveSec = Math.max(0, Math.floor((Date.now() - prev.startTime) / 1000));
+          return { ...prev, elapsedSec: liveSec };
+        });
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [activeFeeding]);
+  }, [activeFeeding?.isPaused, activeFeeding?.startTime]);
 
   async function loadData(showSpinner = true) {
     if (showSpinner) setLoading(true);
@@ -97,6 +98,25 @@ export default function DashboardPage() {
       const res = await fetch(`/api/bowel-movements${activeBabyId ? `?babyId=${activeBabyId}` : ''}`);
       const json = await res.json();
       setData(json);
+
+      // Detectar mamada ativa sincronizada em tempo real via Firestore/API
+      if (Array.isArray(json.feedings)) {
+        const activeFS = json.feedings.find((f: any) => f.status === 'RUNNING' || (!f.endedAt && f.durationSec === 0 && f.startedAt));
+        if (activeFS) {
+          const start = new Date(activeFS.startedAt || activeFS.createdAt || Date.now()).getTime();
+          const elapsedSec = Math.max(0, Math.floor((Date.now() - start) / 1000));
+          setActiveFeeding({
+            id: activeFS.id,
+            side: activeFS.side,
+            startTime: start,
+            elapsedSec,
+            isPaused: Boolean(activeFS.isPaused),
+            pauseReason: activeFS.pauseReason || null,
+          });
+        } else {
+          setActiveFeeding((prev) => (prev?.id ? null : prev));
+        }
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -156,44 +176,99 @@ export default function DashboardPage() {
     }
   }
 
-  // Feeding Timer Controls
-  function startFeeding(side: 'LEFT_BREAST' | 'RIGHT_BREAST' | 'BOTTLE') {
+  // Feeding Timer Controls (Sincronizado em Tempo Real via Firestore)
+  async function startFeeding(side: 'LEFT_BREAST' | 'RIGHT_BREAST' | 'BOTTLE') {
+    if (!data?.baby?.id) return;
+    const now = Date.now();
     setActiveFeeding({
       side,
-      startTime: Date.now(),
+      startTime: now,
       elapsedSec: 0,
       isPaused: false,
       pauseReason: null,
     });
-  }
 
-  function togglePauseFeeding(reason?: string) {
-    if (!activeFeeding) return;
-
-    if (!activeFeeding.isPaused) {
-      setActiveFeeding({
-        ...activeFeeding,
-        isPaused: true,
-        pauseReason: reason || 'Pausa',
+    try {
+      const res = await fetch('/api/feedings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          babyId: data.baby.id,
+          side,
+          status: 'RUNNING',
+          startedAt: new Date(now).toISOString(),
+        }),
       });
-    } else {
-      setActiveFeeding({
-        ...activeFeeding,
-        isPaused: false,
-        pauseReason: null,
-      });
+      const json = await res.json();
+      if (json?.id) {
+        setActiveFeeding((prev) => (prev ? { ...prev, id: json.id } : null));
+      }
+    } catch (e) {
+      console.error(e);
     }
   }
 
-  function handleSwitchBreastSide() {
+  async function togglePauseFeeding(reason?: string) {
+    if (!activeFeeding) return;
+
+    const newPaused = !activeFeeding.isPaused;
+    const newReason = newPaused ? (reason || 'Pausa') : null;
+
+    setActiveFeeding({
+      ...activeFeeding,
+      isPaused: newPaused,
+      pauseReason: newReason,
+    });
+
+    if (activeFeeding.id) {
+      try {
+        await fetch('/api/feedings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: activeFeeding.id,
+            babyId: data?.baby?.id,
+            side: activeFeeding.side,
+            isPaused: newPaused,
+            pauseReason: newReason,
+            status: 'RUNNING',
+          }),
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  async function handleSwitchBreastSide() {
     if (!activeFeeding) return;
     const newSide = activeFeeding.side === 'LEFT_BREAST' ? 'RIGHT_BREAST' : 'LEFT_BREAST';
+
     setActiveFeeding({
       ...activeFeeding,
       side: newSide,
       isPaused: false,
       pauseReason: null,
     });
+
+    if (activeFeeding.id) {
+      try {
+        await fetch('/api/feedings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: activeFeeding.id,
+            babyId: data?.baby?.id,
+            side: newSide,
+            isPaused: false,
+            pauseReason: null,
+            status: 'RUNNING',
+          }),
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }
 
   async function stopAndSaveFeeding() {
@@ -205,6 +280,7 @@ export default function DashboardPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id: activeFeeding.id || undefined,
           babyId: data.baby.id,
           side: activeFeeding.side,
           durationSec: activeFeeding.elapsedSec,
@@ -213,6 +289,7 @@ export default function DashboardPage() {
             activeFeeding.side === 'BOTTLE'
               ? `Mamadeira de ${bottleMl}ml${pauseNote}`
               : `Mamada no peito ${activeFeeding.side === 'LEFT_BREAST' ? 'esquerdo' : 'direito'}${pauseNote}`,
+          status: 'FINISHED',
         }),
       });
 
@@ -221,6 +298,21 @@ export default function DashboardPage() {
     } catch (e) {
       console.error(e);
     }
+  }
+
+  async function handleCancelFeeding() {
+    if (!activeFeeding) return;
+
+    if (activeFeeding.id) {
+      try {
+        await fetch(`/api/feedings?id=${activeFeeding.id}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    setActiveFeeding(null);
+    await loadData(false);
   }
 
   async function handleSaveManualFeeding(e: React.FormEvent) {
@@ -842,10 +934,21 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
                     <button
+                      type="button"
+                      onClick={handleCancelFeeding}
+                      className="flex-1 sm:flex-none px-4 py-3 bg-slate-800/80 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold rounded-2xl transition active:scale-95 flex items-center justify-center gap-1.5"
+                      title="Cancelar mamada e descartar registro (clique acidental)"
+                    >
+                      <Trash2 size={15} />
+                      <span>Cancelar</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={stopAndSaveFeeding}
-                      className="flex-1 sm:flex-none px-6 py-3 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-2xl shadow-lg active:scale-95 transition flex items-center justify-center gap-2"
+                      className="flex-1 sm:flex-none px-6 py-3 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-2xl shadow-lg active:scale-95 transition flex items-center justify-center gap-2"
                     >
                       <Square size={16} fill="white" />
                       <span>Finalizar & Salvar</span>

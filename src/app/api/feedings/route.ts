@@ -1,5 +1,11 @@
 import { prisma } from '@/lib/prisma';
-import { getFeedingsFS, createFeedingFS, deleteFeedingFS, getBabiesFS } from '@/lib/firebaseStore';
+import {
+  getFeedingsFS,
+  createFeedingFS,
+  updateFeedingFS,
+  deleteFeedingFS,
+  getBabiesFS,
+} from '@/lib/firebaseStore';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -37,15 +43,53 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { babyId, side, durationSec, amountMl, notes } = body;
+    const { id, babyId, side, durationSec, amountMl, notes, startedAt, isPaused, pauseReason, status } = body;
 
-    const fsRecord = await createFeedingFS({
+    // Se fornecido ID, trata-se da atualização/finalização de uma mamada existente
+    if (id) {
+      const updateData: any = {
+        side,
+        durationSec: durationSec !== undefined ? parseInt(durationSec, 10) : 0,
+        amountMl: amountMl ? parseInt(amountMl, 10) : null,
+        notes: notes || null,
+        isPaused: Boolean(isPaused),
+        pauseReason: pauseReason || null,
+        status: status || 'FINISHED',
+        ...(status === 'FINISHED' && { endedAt: new Date().toISOString() }),
+      };
+
+      const fsUpdated = await updateFeedingFS(id, updateData);
+
+      try {
+        await prisma.feedingLog.update({
+          where: { id },
+          data: {
+            side,
+            durationSec: updateData.durationSec,
+            amountMl: updateData.amountMl,
+            notes: updateData.notes,
+          },
+        });
+      } catch (e) {}
+
+      return NextResponse.json(fsUpdated || { id, ...updateData });
+    }
+
+    // Caso contrário, trata-se de um novo registro (em andamento RUNNING ou finalizado)
+    const isRunning = status === 'RUNNING' || (!durationSec && status !== 'FINISHED');
+    const recordData = {
       babyId,
       side,
-      durationSec: parseInt(durationSec || 0, 10),
+      durationSec: durationSec ? parseInt(durationSec, 10) : 0,
       amountMl: amountMl ? parseInt(amountMl, 10) : null,
-      notes,
-    });
+      notes: notes || (isRunning ? `Mamada em andamento (${side})` : `Registro de mamada`),
+      startedAt: startedAt ? new Date(startedAt).toISOString() : new Date().toISOString(),
+      isPaused: Boolean(isPaused),
+      pauseReason: pauseReason || null,
+      status: isRunning ? 'RUNNING' : 'FINISHED',
+    };
+
+    const fsRecord = await createFeedingFS(recordData);
 
     try {
       await prisma.feedingLog.create({
@@ -53,18 +97,22 @@ export async function POST(request: Request) {
           id: fsRecord?.id,
           babyId,
           side,
-          durationSec: parseInt(durationSec || 0, 10),
-          amountMl: amountMl ? parseInt(amountMl, 10) : null,
-          startedAt: new Date(),
-          notes,
+          durationSec: recordData.durationSec,
+          amountMl: recordData.amountMl,
+          startedAt: new Date(recordData.startedAt),
+          notes: recordData.notes,
         },
       });
     } catch (e) {}
 
-    return NextResponse.json(fsRecord || { babyId, side, durationSec, amountMl, notes });
+    return NextResponse.json(fsRecord || { id: `feed-${Date.now()}`, ...recordData });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+}
+
+export async function PUT(request: Request) {
+  return POST(request);
 }
 
 export async function DELETE(request: Request) {
@@ -76,7 +124,7 @@ export async function DELETE(request: Request) {
     await deleteFeedingFS(id);
     try { await prisma.feedingLog.delete({ where: { id } }); } catch (e) {}
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, id });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
