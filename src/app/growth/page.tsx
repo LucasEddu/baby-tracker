@@ -12,6 +12,9 @@ import {
   CartesianGrid,
 } from 'recharts';
 
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+
 export default function GrowthPage() {
   const [records, setRecords] = useState<any[]>([]);
   const [baby, setBaby] = useState<any>(null);
@@ -26,8 +29,8 @@ export default function GrowthPage() {
   const [source, setSource] = useState<'HOME' | 'DOCTOR'>('HOME');
   const [submitting, setSubmitting] = useState(false);
 
-  async function loadGrowth() {
-    setLoading(true);
+  async function loadGrowth(showSpinner = true) {
+    if (showSpinner) setLoading(true);
     try {
       const stored = localStorage.getItem('activeBabyId');
       const activeBabyId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : '';
@@ -42,12 +45,31 @@ export default function GrowthPage() {
       console.error(e);
       setRecords([]);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadGrowth();
+    loadGrowth(true);
+
+    const interval = setInterval(() => {
+      loadGrowth(false);
+    }, 4000);
+
+    let unsub: any = null;
+    const stored = localStorage.getItem('activeBabyId');
+    const activeBabyId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : '';
+    if (activeBabyId) {
+      try {
+        const q = query(collection(db, 'growth_records'), where('babyId', '==', activeBabyId));
+        unsub = onSnapshot(q, () => loadGrowth(false));
+      } catch (e) {}
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (unsub) unsub();
+    };
   }, []);
 
   function handleOpenCreate() {

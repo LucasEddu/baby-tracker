@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Syringe, CheckCircle2, Clock, Plus, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
 
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+
 export default function VaccinesPage() {
   const [vaccines, setVaccines] = useState<any[]>([]);
   const [baby, setBaby] = useState<any>(null);
@@ -28,28 +31,57 @@ export default function VaccinesPage() {
   const [sideEffects, setSideEffects] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  async function loadVaccines() {
-    setLoading(true);
+  async function loadVaccines(showSpinner = true) {
+    if (showSpinner) setLoading(true);
     try {
       const stored = localStorage.getItem('activeBabyId');
       const activeBabyId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : '';
-      const babyRes = await fetch(`/api/bowel-movements${activeBabyId ? `?babyId=${activeBabyId}` : ''}`);
-      const babyData = await babyRes.json();
-      setBaby(babyData.baby);
 
-      const res = await fetch(`/api/vaccines${babyData?.baby?.id ? `?babyId=${babyData.baby.id}` : ''}`);
+      let currentBaby = null;
+      try {
+        const babyRes = await fetch('/api/babies');
+        const babies = await babyRes.json();
+        if (Array.isArray(babies) && babies.length > 0) {
+          currentBaby = babies.find((b: any) => b.id === activeBabyId) || babies[0];
+        }
+      } catch (err) {}
+
+      setBaby(currentBaby);
+
+      const targetId = currentBaby?.id || activeBabyId;
+      const res = await fetch(`/api/vaccines${targetId ? `?babyId=${targetId}` : ''}`);
       const data = await res.json();
       setVaccines(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
       setVaccines([]);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadVaccines();
+    loadVaccines(true);
+
+    const interval = setInterval(() => {
+      loadVaccines(false);
+    }, 4000);
+
+    let unsub: any = null;
+    const stored = localStorage.getItem('activeBabyId');
+    const activeBabyId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : '';
+
+    if (activeBabyId) {
+      try {
+        const q = query(collection(db, 'vaccine_applications'), where('babyId', '==', activeBabyId));
+        unsub = onSnapshot(q, () => loadVaccines(false));
+      } catch (e) {}
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (unsub) unsub();
+    };
   }, []);
 
   function toggleGroup(ageMonth: number) {

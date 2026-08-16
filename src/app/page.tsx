@@ -24,6 +24,9 @@ import Link from 'next/link';
 import SmartNapModal from '@/components/nap/SmartNapModal';
 import ConfirmModal from '@/components/layout/ConfirmModal';
 
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -61,8 +64,8 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [activeFeeding]);
 
-  async function loadData() {
-    setLoading(true);
+  async function loadData(showSpinner = true) {
+    if (showSpinner) setLoading(true);
     try {
       const stored = localStorage.getItem('activeBabyId');
       const activeBabyId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : '';
@@ -72,12 +75,38 @@ export default function DashboardPage() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadData();
+    loadData(true);
+
+    // Auto-polling silencioso a cada 3.5s para sincronização em tempo real entre o casal
+    const interval = setInterval(() => {
+      loadData(false);
+    }, 3500);
+
+    let unsubscribes: any[] = [];
+    const stored = localStorage.getItem('activeBabyId');
+    const activeBabyId = (stored && stored !== 'undefined' && stored !== 'null') ? stored : '';
+
+    if (activeBabyId) {
+      try {
+        const q1 = query(collection(db, 'bowel_movements'), where('babyId', '==', activeBabyId));
+        const q2 = query(collection(db, 'feeding_logs'), where('babyId', '==', activeBabyId));
+        const q3 = query(collection(db, 'growth_records'), where('babyId', '==', activeBabyId));
+
+        unsubscribes.push(onSnapshot(q1, () => loadData(false)));
+        unsubscribes.push(onSnapshot(q2, () => loadData(false)));
+        unsubscribes.push(onSnapshot(q3, () => loadData(false)));
+      } catch (e) {}
+    }
+
+    return () => {
+      clearInterval(interval);
+      unsubscribes.forEach((unsub) => unsub && unsub());
+    };
   }, []);
 
   // Quick 1-Click Diaper Event logger
