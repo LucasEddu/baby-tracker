@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Volume2, Mic, Sun, Moon, Settings, AlertCircle, X, Check, Eye, EyeOff } from 'lucide-react';
+import { Play, Pause, Volume2, Mic, Sun, Moon, Settings, AlertCircle, X, Check, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { whiteNoisePlayer } from '@/lib/audio/whiteNoisePlayer';
 import { cryDetector, SensitivityLevel } from '@/lib/audio/cryDetector';
 import { SoundType } from '@/lib/audio/audioSynth';
@@ -348,6 +348,27 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
     onClose();
   };
 
+  // Cancelar e Descartar Soneca Ativa (Clique Acidental)
+  const handleCancelNap = async () => {
+    cryDetector.stop();
+    setIsMicActive(false);
+
+    await whiteNoisePlayer.stop(0);
+    setIsPlayingNoise(false);
+
+    if (activeSessionIdRef.current) {
+      try {
+        await fetch(`/api/nap/session?id=${activeSessionIdRef.current}`, {
+          method: 'DELETE',
+        });
+      } catch (e) {
+        console.error('Erro ao cancelar soneca:', e);
+      }
+    }
+
+    onClose();
+  };
+
   // Formatação de Tempo HH:MM:SS
   const formatTime = (totalSeconds: number) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -652,18 +673,26 @@ export default function SmartNapModal({ isOpen, onClose, babyId }: SmartNapModal
         )}
       </div>
 
-      {/* Action Button: Bebê Acordou */}
-      <div className="max-w-md w-full mx-auto pt-2">
+      {/* Action Buttons: Bebê Acordou + Cancelar Clique Acidental */}
+      <div className="max-w-md w-full mx-auto pt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <button
+          onClick={handleCancelNap}
+          className="sm:col-span-1 py-3.5 px-3 rounded-2xl font-bold text-xs bg-slate-800/80 hover:bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center gap-1.5 transition active:scale-95"
+        >
+          <Trash2 className="w-4 h-4 text-red-400" />
+          <span>Cancelar Soneca</span>
+        </button>
+
         <button
           onClick={handleManualEnd}
-          className={`w-full py-4 px-6 rounded-2xl font-bold text-base flex items-center justify-center space-x-2 shadow-xl transition transform active:scale-98 ${
+          className={`sm:col-span-2 py-3.5 px-6 rounded-2xl font-bold text-sm flex items-center justify-center space-x-2 shadow-xl transition transform active:scale-98 ${
             isDark
               ? 'bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 shadow-amber-500/10'
               : 'bg-amber-400 hover:bg-amber-500 active:bg-amber-600 text-slate-950 shadow-amber-400/20'
           }`}
         >
           <Sun className="w-5 h-5 fill-slate-950" />
-          <span>Bebê Acordou</span>
+          <span>☀️ Bebê Acordou (Salvar)</span>
         </button>
       </div>
 

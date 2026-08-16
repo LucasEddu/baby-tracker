@@ -401,6 +401,23 @@ export default function DashboardPage() {
     });
   }
 
+  async function handleDeleteNap(id: string) {
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Excluir Registro de Soneca',
+      message: 'Tem certeza que deseja remover este registro de soneca do histórico?',
+      onConfirm: async () => {
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+        try {
+          await fetch(`/api/nap/session?id=${id}`, { method: 'DELETE' });
+          await loadData(false);
+        } catch (e) {
+          console.error(e);
+        }
+      },
+    });
+  }
+
   // Format relative time helper in Portuguese
   function formatRelativeTime(dateString?: string | Date): string {
     if (!dateString) return 'Sem registros';
@@ -1030,6 +1047,18 @@ export default function DashboardPage() {
                                 onClick={() => handleDeleteFeeding(item.id)}
                                 className="p-1 text-slate-400 hover:text-red-400 rounded-md transition-colors"
                                 title="Excluir"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          )}
+
+                          {item.category === 'nap' && (
+                            <div className="flex items-center gap-1 ml-2">
+                              <button
+                                onClick={() => handleDeleteNap(item.id)}
+                                className="p-1 text-slate-400 hover:text-red-400 rounded-md transition-colors"
+                                title="Excluir Soneca"
                               >
                                 <Trash2 size={13} />
                               </button>

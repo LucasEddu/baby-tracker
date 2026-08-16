@@ -2,6 +2,18 @@
 
 ---
 
+## 📌 Versão 2.5.1 — (16/08/2026)
+### 🗑️ Cancelamento de Soneca Ativa & Exclusão no Histórico
+1. **🚫 Cancelar Soneca em Andamento (Clique Acidental)**:
+   - Adicionado botão dedicado **"Cancelar Soneca (Clique Acidental)"** no modal `SmartNapModal`.
+   - Ao cancelar, interrompe o áudio, desativa o monitor de choro e remove a sessão ativa do banco sem salvar no histórico.
+
+2. **🗑️ Exclusão de Soneca na Linha do Tempo**:
+   - Adicionado ícone de lixeira (`Trash2`) em todos os itens de soneca na Linha do Tempo do Dashboard.
+   - Confirmação de exclusão com descarte síncrono no Firestore e Prisma DB.
+
+---
+
 ## 📌 Versão 2.5.0 — (16/08/2026)
 ### 📱 PWA (Progressive Web App) & Suporte Mobile Nativo
 1. **📲 Aplicativo Instalável (PWA)**:

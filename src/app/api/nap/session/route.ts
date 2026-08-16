@@ -3,6 +3,7 @@ import {
   getNapSessionsFS,
   createNapSessionFS,
   updateNapSessionFS,
+  deleteNapSessionFS,
 } from '@/lib/firebaseStore';
 import { NextResponse } from 'next/server';
 
@@ -113,6 +114,23 @@ export async function POST(request: Request) {
     } catch (e) {}
 
     return NextResponse.json(fsCreated || { id: `nap-${Date.now()}`, ...recordData });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'ID da soneca é obrigatório.' }, { status: 400 });
+
+    await deleteNapSessionFS(id);
+    try {
+      await (prisma as any).napSession.delete({ where: { id } });
+    } catch (e) {}
+
+    return NextResponse.json({ success: true, id });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
